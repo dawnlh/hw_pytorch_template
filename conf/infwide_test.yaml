@@ -26,8 +26,8 @@ arch:
 
 ##### metrics
 metrics:
-  - _target_: srcs.metric.metric.calc_psnr
-  - _target_: srcs.metric.metric.calc_ssim
+  - _target_: srcs.metric._metric.calc_psnr
+  - _target_: srcs.metric._metric.calc_ssim
 
 ##### data&nets
 defaults:

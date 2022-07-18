@@ -5,8 +5,8 @@ import torch.distributed as dist
 from torchvision.utils import make_grid
 import platform
 from omegaconf import OmegaConf
-from .base import BaseTrainer
-from srcs.utils.util import collect, instantiate, get_logger
+from ._base import BaseTrainer
+from srcs.utils._util import collect, instantiate, get_logger
 from srcs.logger import BatchMetrics
 import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave

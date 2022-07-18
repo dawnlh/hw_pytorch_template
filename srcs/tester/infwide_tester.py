@@ -7,7 +7,7 @@ import hydra
 import time
 from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
-from srcs.utils.util import instantiate
+from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 
 
@@ -56,7 +56,8 @@ def test_worker(gpus, config):
         criterion['forward_conv_loss'] = instantiate(
             loaded_config.forward_conv_loss, is_func=True)
 
-    metrics = [instantiate(met, is_func=True) for met in loaded_config.metrics]
+    # metrics = [instantiate(met, is_func=True) for met in loaded_config.metrics]
+    metrics = [instantiate(met, is_func=True) for met in config.metrics]
 
     # setup data_loader instances
     test_data_loader = instantiate(config.test_data_loader)

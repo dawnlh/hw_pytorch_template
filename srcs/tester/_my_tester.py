@@ -7,7 +7,7 @@ import hydra
 import time
 from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
-from srcs.utils.util import instantiate
+from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 
 
