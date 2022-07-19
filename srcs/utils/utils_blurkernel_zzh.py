@@ -2,7 +2,7 @@
 import numpy as np
 import scipy
 from math import cos, sin
-from numpy import zeros, ones, prod, array, pi, log, maximum, mod, arange, sum, mgrid, exp, pad, round, ceil, floor
+from numpy import zeros, ones, array, pi, log, maximum, arange, sum, mgrid, exp, pad, round, ceil, floor
 from numpy.random import randn, rand, randint, uniform
 from scipy.signal import convolve2d
 import torch
@@ -29,6 +29,8 @@ Last modified: 2021-10-28 Zhihong Zhang
 # blur kernels generation
 # ===============
 #%% ------ basic function
+
+
 def rot3D(x, r):
     Rx = array([[1, 0, 0], [0, cos(r[0]), -sin(r[0])],
                [0, sin(r[0]), cos(r[0])]])
@@ -81,6 +83,8 @@ def fspecial_gaussian_zzh(hsize, sigma):
     return h
 
 # %% ----- (coded) Linear Motion Blur -----
+
+
 def linearMotionBlurKernel(motion_len=[15, 35], theta=[0, 2*pi], psf_sz=50):
     '''
     linear motion blur kernel
@@ -649,8 +653,9 @@ def randomTrajectory_kair(T):
 # ------------------------------------------- Kair's method ------------------------------------------
 
 #%% ----- (non) Coded Random Motion Blur -----
-# Zhihong Zhang's method (similar to KAIR's implementation - KaiZhang, but modify the traj generation a bit)
-# This implementation results in lower performance compare with Kair's and Schmidt's method , perhaps it's not so realistic ? or it differs from Levin kernel
+# Based on Schmidt's method
+
+
 def codedRandomMotionBlurKernel(motion_len_r=[15, 35],  psf_sz=50, code=None):
     '''
     a pair of coded and non-coded random motion blur kernel
@@ -678,13 +683,12 @@ def codedRandomMotionBlurKernel(motion_len_r=[15, 35],  psf_sz=50, code=None):
                   for k in range(motion_len_n)]
     # print(code, '\n', code_n)
 
-    # get random trajectory
     x = getRandomTrajectory(motion_len_r, motion_len_n,
-                            psf_sz, len_param=motion_len_v, curve_param=4)
-
+                            psf_sz, curvature_param=1)
     # traj 2 kernel
     k = traj2kernel(x, psf_sz, traj_v=code_n)
-    gaussian_kernel_width = random.choice([2, 3, 4])
+    # gaussian_kernel_width = 2
+    gaussian_kernel_width = random.choice([2, 3])
     k = convolve2d(k, fspecial_gauss(gaussian_kernel_width, 1),
                    "same")  # gaussian blur
     k = k/sum(k)
@@ -696,42 +700,53 @@ def codedRandomMotionBlurKernel(motion_len_r=[15, 35],  psf_sz=50, code=None):
     return k
 
 
-def getRandomTrajectory(motion_len_r, motion_len_n, motion_thr, len_param=None, curve_param=4, max_try_times=50):
+def getRandomTrajectory(motion_len_r, motion_len_n, motion_thr, curvature_param=1, max_try_times=100):
     '''
     generate random traj (MOTION_LEN_N points) with length belong to MOTION_LEN and range within MOTION_THR
+    motion_len_r: kernel length range (pixel)
+    motion_len_n: num of traj points (will affect the traj shape)
+    motion_thr:   threshold of the trajectory's bounding box's size
+    curvature_param: curvature control parameter (will affect the traj shape)
+    max_try_times: maximum retry times
     '''
     if isinstance(motion_thr, int):
         motion_thr = [motion_thr, motion_thr]
     if isinstance(motion_len_r, (int, float)):
         motion_len_r = [motion_len_r, motion_len_r]
-    if len_param is None:
-        len_param = np.random.uniform(*motion_len_r)
 
     try_times = 0
     while(True):
-        x = zeros((2, motion_len_n))
-        v = zeros((2, motion_len_n))
-        r = zeros((2, motion_len_n))
-        trans_delta = len_param/motion_len_n
-        # trans_delta = 1 # zzh: original implementation in KAIR
+        x = zeros((3, motion_len_n))
+        v = zeros((3, motion_len_n))
+        r = zeros((3, motion_len_n))
+        trans_delta = 1
         rot_delta = 2 * pi / motion_len_n
 
         for t in range(1, motion_len_n):
-            trans_n = randn(2)/(t+1)
-            rot_n = randn(2)*curve_param
-            # rot_n = r[:, t - 1] + randn(2)/t # zzh: original code in KAIR
+            trans_n = randn(3)/(t+1)
+            # rot_n = r[:, t - 1] + randn(3)/t # original code
+            rot_n = r[:, t - 1] + randn(3)/t*curvature_param
             # Keep the inertia of volecity
             v[:, t] = v[:, t - 1] + trans_delta * trans_n
             # Keep the inertia of direction
             r[:, t] = r[:, t - 1] + rot_delta * rot_n
-            st = rot2D(v[:, t], r[:, t])
+
+            st = rot3D(v[:, t], r[:, t])
             x[:, t] = x[:, t - 1] + st
 
-        # calc trajectory threshold and judge
+        # calc trajectory  length and rescale
         x[0], x[1] = x[0]-min(x[0]), x[1]-min(x[1])  # move to first quadrant
-        x_thr = [max(x[0])+1, max(x[1]+1)]
         x_len = np.sum(np.array([np.sqrt(np.sum((x[:, k+1]-x[:, k])**2))
                                  for k in range(motion_len_n-1)]))
+
+        if not (motion_len_r[0] < x_len < motion_len_r[1]):
+            # rescale traj to desired length
+            x = x*np.random.uniform(*motion_len_r)/x_len
+            x_len = np.sum(np.array([np.sqrt(np.sum((x[:, k+1]-x[:, k])**2))
+                                     for k in range(motion_len_n-1)]))
+
+        # calc trajectory threshold and judge
+        x_thr = [max(x[0])+1, max(x[1]+1)]
         if motion_thr[0] > x_thr[0] and motion_thr[1] > x_thr[1] and motion_len_r[0] < x_len < motion_len_r[1]:
             break  # proper trajectory with length < psf_size and length in MOTION_LEN range
         try_times = try_times+1
@@ -778,15 +793,6 @@ def traj2kernel(x, psf_sz, traj_v=1):
 
     return psf
 
-
-def rot2D(x, r):
-    Rx = array([[cos(r[0]), -sin(r[0])],
-               [sin(r[0]), cos(r[0])]])
-    Ry = array([[cos(r[1]), sin(r[1])],
-                [-sin(r[1]), cos(r[1])]])
-    R = Ry @ Rx
-    x = R @ x
-    return x
 
 # ===============
 # Fourier Transformation
@@ -845,11 +851,14 @@ if __name__ == '__main__':
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     n_kernel = 20
+    ce_code = [1, 0, 1, 0, 1, 0, 0, 1, 0, 1]
     psfs = []
     for k in range(n_kernel):
         # psf = randomBlurKernelSynthesis()
-        psf = randomBlurKernelSynthesis(
-            motion_len_n=250,  curvature_param=1)
+        # psf = randomBlurKernelSynthesis(
+        #     motion_len_n=250,  curvature_param=1)
+        psf = codedRandomMotionBlurKernel(
+            motion_len_r=[32, 48],  psf_sz=80, code=ce_code)
         psf = psf/np.max(psf)*255
         psfs.append(psf)
         print("kernel_%02d" % (k+1))
