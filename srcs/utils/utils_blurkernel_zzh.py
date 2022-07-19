@@ -28,6 +28,18 @@ Last modified: 2021-10-28 Zhihong Zhang
 # ===============
 # blur kernels generation
 # ===============
+#%% ------ basic function
+def rot3D(x, r):
+    Rx = array([[1, 0, 0], [0, cos(r[0]), -sin(r[0])],
+               [0, sin(r[0]), cos(r[0])]])
+    Ry = array([[cos(r[1]), 0, sin(r[1])], [
+               0, 1, 0], [-sin(r[1]), 0, cos(r[1])]])
+    Rz = array([[cos(r[2]), -sin(r[2]), 0],
+               [sin(r[2]), cos(r[2]), 0], [0, 0, 1]])
+    R = Rz @ Ry @ Rx
+    x = R @ x
+    return x
+
 
 # %% ----- fspecial -----
 
@@ -52,9 +64,23 @@ def fspecial_gaussian(hsize, sigma):
         h = h/sumh
     return h
 
+
+def fspecial_gaussian_zzh(hsize, sigma):
+    # zzh: extend to h!=w
+    hsize = hsize if isinstance(hsize, list) else [hsize, hsize]
+    siz = [(hsize[0]-1.0)/2.0, (hsize[1]-1.0)/2.0]
+    std = sigma
+    [x, y] = np.meshgrid(np.arange(-siz[1], siz[1]+1),
+                         np.arange(-siz[0], siz[0]+1))
+    arg = -(x*x + y*y)/(2*std*std)
+    h = np.exp(arg)
+    h[h < scipy.finfo(float).eps * h.max()] = 0
+    sumh = h.sum()
+    if sumh != 0:
+        h = h/sumh
+    return h
+
 # %% ----- (coded) Linear Motion Blur -----
-
-
 def linearMotionBlurKernel(motion_len=[15, 35], theta=[0, 2*pi], psf_sz=50):
     '''
     linear motion blur kernel
@@ -213,7 +239,7 @@ def linearTrajectory(T_value):
 
 
 # %% ----- Random Motion Blur -----
-# Boracchi's method
+# ------------------------------------------- Boracchi's method ------------------------------------------
 def create_random_psf(psf_size=64, trajSize=64, anxiety=0.005, num_samples=2000, max_total_length=64, exp_time=[1]):
     """
     PSFs are obtained by sampling the continuous trajectory TrajCurve on a regular pixel grid using linear interpolation at subpixel level
@@ -387,8 +413,11 @@ def create_random_trajectory(trajectory_size=64, anxiety=0.005, num_samples=2000
         np.ceil((trajectory_size - np.max(np.real(x))) / 2)
     return x, totalLength, abruptShakesCounter
 
+# ------------------------------------------ Boracchi's method -------------------------------------------
 
-# Schmidt's method (similar to KAIR's implementation - KaiZhang, but use 2d coordinate and add control params)
+
+# ------------------------------------------- Schmidt's method ------------------------------------------
+# Schmidt's method (similar to KAIR's implementation - KaiZhang, but add control params and no gaussian kernek and resize op)
 def randomBlurKernelSynthesis(motion_len_r=[1, 100], motion_len_n=250, psf_sz=37, curvature_param=1):
     '''
     generate random motion blur kernel
@@ -516,20 +545,112 @@ def kernelFromTrajectory(x, psf_sz, traj_v=1):
     return psf
 
 
-def rot3D(x, r):
-    Rx = array([[1, 0, 0], [0, cos(r[0]), -sin(r[0])],
-               [0, sin(r[0]), cos(r[0])]])
-    Ry = array([[cos(r[1]), 0, sin(r[1])], [
-               0, 1, 0], [-sin(r[1]), 0, cos(r[1])]])
-    Rz = array([[cos(r[2]), -sin(r[2]), 0],
-               [sin(r[2]), cos(r[2]), 0], [0, 0, 1]])
-    R = Rz @ Ry @ Rx
-    x = R @ x
+# ------------------------------------------- Schmidt's method ------------------------------------------
+
+# ------------------------------------------- Kair's method ------------------------------------------
+
+def blurkernel_synthesis_kair(h=37, w=None):
+    # function: randomly generate different type of kernels (motion blur, gaussian, )
+    # https://github.com/tkkcc/prior/blob/879a0b6c117c810776d8cc6b63720bf29f7d0cc4/util/gen_kernel.py
+    # Modified by Zhihong Zhang
+    # zzh fixup small bugs
+    w = h if w is None else w
+    x = randomTrajectory_kair(250)
+    k = None
+    while k is None:
+        k = kernelFromTrajectory_kair(x)
+    kdims = k.shape
+
+    # judge [h,w] v.s. kdims
+    if h < kdims[0]:
+        k = k[0:h, :]
+        kdims[0] = h
+
+    if w < k.shape[1]:
+        k = k[:, 0:w]
+        kdims[1] = w
+
+    # center pad to kdims
+    pad_width = ((h - kdims[0]) // 2, (w - kdims[1]) // 2)
+
+    # zzh: be cautious about aliquant case
+    pad_width = [(pad_width[0], h - kdims[0]-pad_width[0]),
+                 (pad_width[1], w - kdims[1]-pad_width[1])]
+
+    k = pad(k, pad_width, "constant")
+    h, w = k.shape
+    if np.random.randint(0, 4) == 1:
+        k = cv2.resize(k, (random.randint(h, 5*h),
+                       random.randint(w, 5*w)), interpolation=cv2.INTER_LINEAR)
+        m, n = k.shape
+        k = k[(m-h)//2: (m-h)//2+h, (n-w)//2: (n-w)//2+w]
+
+    #zzh: gaussian kernel (why?)
+    if sum(k) < 0.1:
+        k = fspecial_gaussian_zzh([h, w], 0.1+6*np.random.rand(1))
+    k = k / sum(k)
+    # import matplotlib.pyplot as plt
+    # plt.imshow(k, interpolation="nearest", cmap="gray")
+    # plt.show()
+    return k
+
+
+def kernelFromTrajectory_kair(x):
+    h = 5 - log(rand()) / 0.15
+    h = round(min([h, 27])).astype(int)
+    h = h + 1 - h % 2
+    w = h
+    k = zeros((h, w))
+
+    xmin = min(x[0])
+    xmax = max(x[0])
+    ymin = min(x[1])
+    ymax = max(x[1])
+    xthr = arange(xmin, xmax, (xmax - xmin) / w)
+    ythr = arange(ymin, ymax, (ymax - ymin) / h)
+
+    for i in range(1, xthr.size):
+        for j in range(1, ythr.size):
+            idx = (
+                (x[0, :] >= xthr[i - 1])
+                & (x[0, :] < xthr[i])
+                & (x[1, :] >= ythr[j - 1])
+                & (x[1, :] < ythr[j])
+            )
+            k[i - 1, j - 1] = sum(idx)
+    if sum(k) == 0:
+        return
+    k = k / sum(k)
+    gaussian_kernel_sz = 2
+    k = convolve2d(k, fspecial_gauss(gaussian_kernel_sz, 1), "same")
+    k = k / sum(k)
+    return k
+
+
+def randomTrajectory_kair(T):
+    '''
+    get a random trajectory coordinate sequence with length T
+    '''
+    x = zeros((3, T))  # traj coord
+    v = randn(3, T)
+    r = zeros((3, T))
+    trv = 1 / 1
+    trr = 2 * pi / T
+    for t in range(1, T):
+        F_rot = randn(3) / (t + 1) + r[:, t - 1]
+        F_trans = randn(3) / (t + 1)
+        r[:, t] = r[:, t - 1] + trr * F_rot
+        v[:, t] = v[:, t - 1] + trv * F_trans
+        st = v[:, t]
+        st = rot3D(st, r[:, t])
+        x[:, t] = x[:, t - 1] + st
     return x
 
+# ------------------------------------------- Kair's method ------------------------------------------
 
-# ----- (non) Coded Random Motion Blur -----
-# Note: `codedRandomMotionBlurKernel` result in low performance compare with Kair's `blurkernel_synthesis` and `create_random_psf` (above), perhaps it's not so realistic ? or it differs from Levin kernel
+#%% ----- (non) Coded Random Motion Blur -----
+# Zhihong Zhang's method (similar to KAIR's implementation - KaiZhang, but modify the traj generation a bit)
+# This implementation results in lower performance compare with Kair's and Schmidt's method , perhaps it's not so realistic ? or it differs from Levin kernel
 def codedRandomMotionBlurKernel(motion_len_r=[15, 35],  psf_sz=50, code=None):
     '''
     a pair of coded and non-coded random motion blur kernel
