@@ -2,17 +2,17 @@
 from functools import reduce
 import numpy as np
 import scipy
-from scipy import fftpack, ndimage
+from scipy import ndimage
 import os
 import sys
 from math import cos, sin
-from numpy import zeros, ones, prod, array, pi, log, min, max, maximum, mod, arange, sum, mgrid, exp, pad, round, ceil, floor
+from numpy import zeros, ones,  array, pi,  min, max, maximum, sum, mgrid, exp, pad, round, ceil, floor
 from numpy.random import randn, rand, randint, uniform
 from scipy.signal import convolve2d
 import cv2
 from os.path import join as opj
 import scipy.io as sio
-
+import random
 
 '''
 some codes are copied/modified from 
@@ -210,7 +210,7 @@ def linearTrajectory(T_value):
     return x
 
 
-# ----- Random Motion Blur -----
+# ----- (coded) Random Motion Blur -----
 
 def codedRandomMotionBlurKernelPair(motion_len_r=[15, 35],  psf_sz=50, code=None):
     '''
@@ -223,8 +223,6 @@ def codedRandomMotionBlurKernelPair(motion_len_r=[15, 35],  psf_sz=50, code=None
         psf_sz = [psf_sz, psf_sz]
     if isinstance(motion_len_r, (int, float)):
         motion_len_r = [motion_len_r, motion_len_r]
-    # if isinstance(theta, (int, float)):
-    #     theta = [theta, theta]
 
     motion_len_v = uniform(*motion_len_r)
 
@@ -243,21 +241,76 @@ def codedRandomMotionBlurKernelPair(motion_len_r=[15, 35],  psf_sz=50, code=None
 
     # get random trajectory
     x = getRandomTrajectory(motion_len_r, motion_len_n,
-                            psf_sz, len_param=motion_len_v, curve_param=4)
-    # x = x*code_n  # coded traj
-
+                            psf_sz, curvature_param=1)
     k = traj2kernel(x, psf_sz, traj_v=code_n)
-    k = convolve2d(k, fspecial_gauss(2, 1), "same")  # gaussian blur
+    gaussian_kernel_width = random.choice([2, 3])
+    k = convolve2d(k, fspecial_gauss(gaussian_kernel_width, 1),
+                   "same")  # gaussian blur
     k = k/sum(k)
 
     k_orig = traj2kernel(x, psf_sz, traj_v=1)
-    k_orig = convolve2d(k_orig, fspecial_gauss(2, 1), "same")  # gaussian blur
+    k_orig = convolve2d(k_orig, fspecial_gauss(
+        gaussian_kernel_width, 1), "same")  # gaussian blur
     k_orig = k_orig/sum(k_orig)
     # import matplotlib.pyplot as plt
     # plt.imshow(k, interpolation="nearest", cmap="gray")
     # plt.show()
 
     return k, k_orig
+
+
+def getRandomTrajectory(motion_len_r, motion_len_n, motion_thr, curvature_param=1, max_try_times=100):
+    '''
+    generate random traj (MOTION_LEN_N points) with length belong to MOTION_LEN and range within MOTION_THR
+    motion_len_r: kernel length range (pixel)
+    motion_len_n: num of traj points (will affect the traj shape)
+    motion_thr:   threshold of the trajectory's bounding box's size
+    curvature_param: curvature control parameter (will affect the traj shape)
+    max_try_times: maximum retry times
+    '''
+    if isinstance(motion_thr, int):
+        motion_thr = [motion_thr, motion_thr]
+    if isinstance(motion_len_r, (int, float)):
+        motion_len_r = [motion_len_r, motion_len_r]
+
+    try_times = 0
+    while(True):
+        x = zeros((3, motion_len_n))
+        v = zeros((3, motion_len_n))
+        r = zeros((3, motion_len_n))
+        trans_delta = 1
+        rot_delta = 2 * pi / motion_len_n
+
+        for t in range(1, motion_len_n):
+            trans_n = randn(3)/(t+1)
+            # rot_n = r[:, t - 1] + randn(3)/t # original code
+            rot_n = r[:, t - 1] + randn(3)/t*curvature_param
+            # Keep the inertia of volecity
+            v[:, t] = v[:, t - 1] + trans_delta * trans_n
+            # Keep the inertia of direction
+            r[:, t] = r[:, t - 1] + rot_delta * rot_n
+
+            st = rot3D(v[:, t], r[:, t])
+            x[:, t] = x[:, t - 1] + st
+
+        # calc trajectory  length and rescale
+        x[0], x[1] = x[0]-min(x[0]), x[1]-min(x[1])  # move to first quadrant
+        x_len = np.sum(np.array([np.sqrt(np.sum((x[:, k+1]-x[:, k])**2))
+                                 for k in range(motion_len_n-1)]))
+
+        if not (motion_len_r[0] < x_len < motion_len_r[1]):
+            # rescale traj to desired length
+            x = x*np.random.uniform(*motion_len_r)/x_len
+            x_len = np.sum(np.array([np.sqrt(np.sum((x[:, k+1]-x[:, k])**2))
+                                     for k in range(motion_len_n-1)]))
+
+        # calc trajectory threshold and judge
+        x_thr = [max(x[0])+1, max(x[1]+1)]
+        if motion_thr[0] > x_thr[0] and motion_thr[1] > x_thr[1] and motion_len_r[0] < x_len < motion_len_r[1]:
+            break  # proper trajectory with length < psf_size and length in MOTION_LEN range
+        try_times = try_times+1
+        assert try_times < max_try_times, 'Error: MOTION_LEN and PSF_SZ is not proper'
+    return x
 
 
 def traj2kernel(x, psf_sz, traj_v=1):
@@ -300,55 +353,18 @@ def traj2kernel(x, psf_sz, traj_v=1):
     return psf
 
 
-def getRandomTrajectory(motion_len_r, motion_len_n, motion_thr, len_param=None, curve_param=4, max_try_times=50):
-    '''
-    generate random traj (MOTION_LEN_N points) with length belong to MOTION_LEN and range within MOTION_THR
-    '''
-    if isinstance(motion_thr, int):
-        motion_thr = [motion_thr, motion_thr]
-    if isinstance(motion_len_r, (int, float)):
-        motion_len_r = [motion_len_r, motion_len_r]
-    if len_param is None:
-        len_param = np.random.uniform(*motion_len_r)
-
-    try_times = 0
-    while(True):
-        x = zeros((2, motion_len_n))
-        v = zeros((2, motion_len_n))
-        r = zeros((2, motion_len_n))
-        trans_delta = len_param/motion_len_n
-        rot_delta = 2 * pi / motion_len_n
-
-        for t in range(1, motion_len_n):
-            trans_n = randn(2)/(t+1)
-            rot_n = randn(2)*curve_param
-            # Keep the inertia of volecity
-            v[:, t] = v[:, t - 1] + trans_delta * trans_n
-            # Keep the inertia of direction
-            r[:, t] = r[:, t - 1] + rot_delta * rot_n
-            st = rot2D(v[:, t], r[:, t])
-            x[:, t] = x[:, t - 1] + st
-
-        # calc trajectory threshold and judge
-        x[0], x[1] = x[0]-min(x[0]), x[1]-min(x[1])  # move to first quadrant
-        x_thr = [max(x[0])+1, max(x[1]+1)]
-        x_len = np.sum(np.array([np.sqrt(np.sum((x[:, k+1]-x[:, k])**2))
-                                 for k in range(motion_len_n-1)]))
-        if motion_thr[0] > x_thr[0] and motion_thr[1] > x_thr[1] and motion_len_r[0] < x_len < motion_len_r[1]:
-            break  # proper trajectory with length < psf_size and length in MOTION_LEN range
-        try_times = try_times+1
-        assert try_times < max_try_times, 'Error: MOTION_LEN and PSF_SZ is not proper'
-    return x
-
-
-def rot2D(x, r):
-    Rx = array([[cos(r[0]), -sin(r[0])],
-               [sin(r[0]), cos(r[0])]])
-    Ry = array([[cos(r[1]), sin(r[1])],
-                [-sin(r[1]), cos(r[1])]])
-    R = Ry @ Rx
+def rot3D(x, r):
+    Rx = array([[1, 0, 0], [0, cos(r[0]), -sin(r[0])],
+               [0, sin(r[0]), cos(r[0])]])
+    Ry = array([[cos(r[1]), 0, sin(r[1])], [
+               0, 1, 0], [-sin(r[1]), 0, cos(r[1])]])
+    Rz = array([[cos(r[2]), -sin(r[2]), 0],
+               [sin(r[2]), cos(r[2]), 0], [0, 0, 1]])
+    R = Rz @ Ry @ Rx
     x = R @ x
     return x
+
+#  --------- util ----------
 
 
 def psf_blur_img(img, psf, noise_level=0):
@@ -371,10 +387,6 @@ def psf_blur_img(img, psf, noise_level=0):
     return coded_blur_img.astype(np.float32)
 
 
-#=============
-# main function
-#=============
-
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(__file__) + os.sep + '../')
     import matplotlib.pyplot as plt
@@ -382,88 +394,66 @@ if __name__ == '__main__':
     from utils.utils_image_zzh import augment_img
 
 # %% Funciton list
-    FLAG_generate_psf_pair = False
     FLAG_psf_blur_image = False
-    FLAG_traj_psf = False
-    FLAG_kair_psf = True
+    FLAG_traj_psf = True
+    FLAG_kair_psf = False
 
 
-# %% generate random motion trajectory and corresponding psf / load traj and generate psf
+# %% use random motion trajectory (or load existing traj) to generate corresponding box&ce psf
 if FLAG_traj_psf:
     # params
-    motion_len_r = [60, 68]
-    motion_len_n = 192
-    psf_sz = 80
-    iter = 20
+    motion_len_r = [60, 80]
+    psf_sz = 65
+    # ce_code = [1,0,1,0,0,1]
+    ce_code = [1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0,
+               0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1]  # [raskar2006CodedExposure]
+    iter = 200
     load_traj = False
     traj_dir = './dataset/benchmark/pair_traj_psf1/traj/'
-    save_dir = './outputs/tmp/traj/'
+    save_dir = './outputs/tmp/'
 
-    # load traj
     # generate dir
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir+'box_psf', exist_ok=True)
-        os.makedirs(save_dir+'traj', exist_ok=True)
+    os.makedirs(save_dir+'box_psf', exist_ok=True)
+    os.makedirs(save_dir+'ce_psf', exist_ok=True)
+    os.makedirs(save_dir+'traj', exist_ok=True)
 
+    # pre calc
+    ce_code = np.array(ce_code, dtype=np.float32)
+    motion_len_v = uniform(*motion_len_r)
+    motion_len_n = ceil(maximum(motion_len_v, len(ce_code))*3).astype(int)
+    code_n = [ce_code[floor(k*len(ce_code)/motion_len_n).astype(int)]
+              for k in range(motion_len_n)]
     # run
-    for k in range(iter):
+    for m in range(iter):
         if load_traj:
             traj = sio.loadmat(traj_dir+'traj%02d.mat' % (k+1))
             traj = traj['traj']
         else:
-            traj = getRandomTrajectory(motion_len_r, motion_len_n, motion_thr=psf_sz,
-                                       len_param=None, curve_param=6, max_try_times=100).astype(np.int32)
+            traj = getRandomTrajectory(motion_len_r, motion_len_n,
+                                       psf_sz, curvature_param=1).astype(np.int32)
 
-        psf = traj2kernel(traj, psf_sz)
-        psf = convolve2d(psf, fspecial_gauss(3, 1), "same")  # gaussian blur
-        psf = psf/sum(psf)
-        psf_png = psf/np.max(psf)*255
-        # psf_png = psf_png[:, ::-1]
+        k = traj2kernel(traj, psf_sz, traj_v=code_n)
+        gaussian_kernel_width = random.choice([2, 3])
+        k = convolve2d(k, fspecial_gauss(gaussian_kernel_width, 1),
+                       "same")  # gaussian blur
+        k = k/sum(k)
 
-        print('PSF Num.', k)
-        sio.savemat(opj(save_dir, 'traj/traj%02d.mat' % (k+1)), {'traj': traj})
-        cv2.imwrite(opj(save_dir, 'box_psf/box_psf%02d.png'
-                    % (k+1)), psf_png, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+        k_orig = traj2kernel(traj, psf_sz, traj_v=1)
+        k_orig = convolve2d(k_orig, fspecial_gauss(
+            gaussian_kernel_width, 1), "same")  # gaussian blur
+        k_orig = k_orig/sum(k_orig)
 
-# %% generate coded and non-coded psf pair
-if FLAG_generate_psf_pair:
-    # param
-    motion_len = [25, 48]
+        ce_psf_png = k/np.max(k)*255
+        box_psf_png = k_orig/np.max(k)*255
 
-    # ce_code = [1, 0, 1, 0, 1]
-    # ce_code = [1]*32
-    # ce_code = [1, 0, 1, 0, 1, 0, 0, 1, 0, 1]
-    # ce_code = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    # ce_code = [1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0, 0,
-    #            1, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1]  # [cui2020MultiframeMotion]
-    ce_code = [1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0,
-               0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1]  # [raskar2006CodedExposure]
-    save_dir = './outputs/tmp/psf/'
-    psf_num = 10
+        print('PSF Num.', m+1)
+        sio.savemat(opj(save_dir, 'traj/traj%03d.mat' % (m+1)), {'traj': traj})
+        cv2.imwrite(opj(save_dir, 'ce_psf/box_psf%03d.png'
+                    % (m+1)), ce_psf_png, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+        cv2.imwrite(opj(save_dir, 'box_psf/box_psf%03d.png'
+                    % (m+1)), box_psf_png, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-    # generate dir
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir+'ce_psf', exist_ok=True)
-        os.makedirs(save_dir+'box_psf', exist_ok=True)
-
-    for k in range(psf_num):
-        coded_psf, psf = codedRandomMotionBlurKernelPair(
-            motion_len_r=motion_len,  psf_sz=80, code=ce_code)
-
-        psf_png = psf/np.max(psf)*255
-        coded_psf_png = coded_psf/np.max(coded_psf)*255
-
-        # import matplotlib.pyplot as plt
-        # plt.imshow(psf, interpolation="nearest", cmap="gray")
-        # plt.show()
-
-        print('PSF Num.', k)
-        cv2.imwrite(opj(save_dir, 'ce_psf/ce_psf%02d.png' %
-                    k), coded_psf_png, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-        cv2.imwrite(opj(save_dir, 'box_psf/box_psf%02d.png' %
-                    k), psf_png, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-
-# %% psf blur image
+# %% blur image using existing psf
 if FLAG_psf_blur_image:
     # param & path
     noise_level = 0
@@ -515,6 +505,7 @@ if FLAG_psf_blur_image:
         cnt += 1
         cv2.imwrite(opj(save_dir, 'blur_img%03d.png' % cnt),
                     noisy_blur_tmp, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+
 
 # %% generate psf
 if FLAG_kair_psf:
