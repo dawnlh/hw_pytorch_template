@@ -1,11 +1,14 @@
-torch>=1.1
-torchvision
-numpy
-hydra-core>=1.0.3
-hydra_colorlog
-omegaconf
-tqdm
-tensorboard>=1.14
-matplotlib
-opencv
-scikit-image
+conda:
+    torch>=1.1
+    torchvision
+    scikit-image
+    matplotlib
+    tensorboard>=1.14
+    pandas
+
+pip:
+    hydra-core>=1.0.3
+    hydra_colorlog
+    tqdmp
+    opencv-python
+    pytorch-msssim
