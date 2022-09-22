@@ -4,7 +4,8 @@ import torch
 import numpy as np
 from os.path import join as opj
 import itertools
-
+from scipy import ndimage
+import torch.nn.functional as F
 # ===============
 # image/video transform
 # ===============
@@ -64,6 +65,20 @@ def augment_vid(vid, prob=0.5, tform_op=['all']):
 # ===============
 
 
+def circular_padding(tensor, psf_sz):
+    '''
+    circular padding for image batch
+    :param x: img, shape [N,C,H,W]
+    :param pad: [H,W]
+    :return:
+    '''
+    x_pad_len, y_pad_len = psf_sz[0]-1, psf_sz[1]-1
+    pad_width = (y_pad_len//2, y_pad_len-y_pad_len//2,
+                 x_pad_len//2, x_pad_len-x_pad_len//2)
+    tensor = F.pad(tensor, pad_width, "circular")
+    return tensor
+
+
 def pad_circular(x, pad):
     """
 
@@ -104,6 +119,48 @@ def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
         pass
 
     return x
+
+
+# ===============
+# image processing
+# ===============
+
+
+def img_blur(img, psf, noise_level=0.01, mode='circular'):
+    """
+    blur image with psf
+
+    Args:
+        img (ndarray): sharp image
+        psf (ndarray): coded exposure psf
+        noise_level (scalar): noise level
+        mode (str): convolution mode, 'circular' | valid'
+
+    Returns:
+        x: blurred image
+    """
+    # convolution
+    if mode == 'circular':
+        blur_img = ndimage.filters.convolve(
+            img, np.expand_dims(psf, axis=2), mode='wrap')
+    elif mode == 'valid':
+        blur_img = ndimage.filters.convolve(
+            img, np.expand_dims(psf, axis=2), mode='constant', cval=0.0)
+    else:
+        raise NotImplementedError(f'"{mode}" mode is not implemented')
+
+    # add Gaussian noise
+    blur_noisy_img = blur_img + \
+        np.random.normal(0, noise_level, blur_img.shape)
+    return blur_noisy_img.astype(np.float32)
+
+
+def img_saturation(img, mag_times=1.2, min=0, max=1):
+    """
+    saturation generation by magnify and clip
+    """
+    # return np.clip(img*mag_times, min, max)
+    return np.clip(img*mag_times, min, max)/mag_times
 
 
 

@@ -14,14 +14,15 @@ import torch.nn.functional as F
 from scipy.signal import fftconvolve
 
 '''
-some codes are copied/modified from 
+some codes are copied/modified from
     https://github.com/cszn
     https://github.com/twhui/SRGAN-pyTorch
     https://github.com/xinntao/BasicSR
     https://gitlab.mpi-klsb.mpg.de/jdong/dwdn
 
-Last modified: 2021-10-28 Zhihong Zhang 
+Last modified: 2021-10-28 Zhihong Zhang
 '''
+
 
 # ===============
 # Fourier transformation
@@ -52,12 +53,14 @@ def p2o(psf, shape):
 # circular padding
 # ===============
 
+
+
 def pad_circular(x, pad):
     """
-    2D image circular padding
+    2D image circular padding: pad each side of x with pad elements
     :param x: img, shape [H, W]
-    :param pad: int >= 0
-    :return:
+    :param pad: padding size, int >= 0
+    :return: padded res, [H+2*pad, W+2*pad]
     """
     x = torch.cat([x, x[0:pad]], dim=0)
     x = torch.cat([x, x[:, 0:pad]], dim=1)
@@ -66,26 +69,14 @@ def pad_circular(x, pad):
 
     return x
 
-def circular_padding(tensor, psf_sz):
-    '''
-    circular padding for image batch
-    :param x: img, shape [N,C,H,W]
-    :param pad: [H,W]
-    :return:
-    '''
-    x_pad_len, y_pad_len = psf_sz[0]-1, psf_sz[1]-1
-    pad_width = (y_pad_len//2, y_pad_len-y_pad_len//2,
-                    x_pad_len//2, x_pad_len-x_pad_len//2)
-    tensor = F.pad(tensor, pad_width, "circular")
-    return tensor
-    
+
 
 def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
     """
     :param x: shape [H, W]
-    :param pad: int >= 0
+    :param pad: padding size, int >= 0
     :param dim: the dimension over which the tensors are padded
-    :return:
+    :return: padded res
     """
 
     if isinstance(dim, int):
@@ -100,16 +91,17 @@ def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
         x = torch.cat([x, x[idx]], dim=d)
 
         idx = tuple(slice(None if s != d else -2 * pad, None if s !=
-                    d else -pad, 1) for s in range(len(x.shape)))
+                          d else -pad, 1) for s in range(len(x.shape)))
         x = torch.cat([x[idx], x], dim=d)
         pass
 
     return x
 
+
 # ===============
 # edge taper
 # ===============
-## Implementation from https://github.com/teboli/polyblur
+# Implementation from https://github.com/teboli/polyblur
 
 
 def edgetaper(img, kernel, n_tapers=3):
@@ -180,6 +172,7 @@ def edgetaper_torch(img, kernel, n_tapers=3):
         blurred = torch.real(torch.fft.ifft2(K * I))[..., ks:-ks, ks:-ks]
         img = alpha * img + (1 - alpha) * blurred
     return img
+
 
 if __name__ == '__main__':
     pass

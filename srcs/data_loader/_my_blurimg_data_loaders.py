@@ -32,6 +32,34 @@ def init_network_input(coded_blur_img, code):
     return coded_blur_img
 
 
+def img_blur(img, psf, noise_level=0.01, mode='circular'):
+    """
+    blur image with psf
+
+    Args:
+        img (ndarray): sharp image
+        psf (ndarray): coded exposure psf
+        noise_level (scalar): noise level
+        mode (str): convolution mode, 'circular' | valid'
+
+    Returns:
+        x: blurred image
+    """
+    # convolution
+    if mode == 'circular':
+        blur_img = ndimage.filters.convolve(
+            img, np.expand_dims(psf, axis=2), mode='wrap')
+    elif mode == 'valid':
+        blur_img = ndimage.filters.convolve(
+            img, np.expand_dims(psf, axis=2), mode='constant', cval=0.0)
+    else:
+        raise NotImplementedError(f'"{mode}" mode is not implemented')
+
+    # add Gaussian noise
+    blur_noisy_img = blur_img + \
+        np.random.normal(0, noise_level, blur_img.shape)
+    return blur_noisy_img.astype(np.float32)
+
 def img_saturation(img, mag_times=1.2, min=0, max=1):
     """
     saturation generation by magnify and clip
@@ -49,7 +77,9 @@ class BlurImgDataset(Dataset):
     generate blurry images from loaded sharp images, load samples during each iteration
     """
 
-    def __init__(self, img_dir, ce_code=None, patch_sz=256, tform_op=None, noise_type='gaussian', noise_params={'sigma': 0}, motion_len=0, load_psf_dir=None, test_mode='one2part'):
+    def __init__(self, img_dir, ce_code=None, patch_sz=256, tform_op=None, noise_type='gaussian', noise_params=None, motion_len=0, load_psf_dir=None, test_mode='one2part'):
+        if noise_params is None:
+            noise_params = {'sigma': 0}
         super(BlurImgDataset, self).__init__()
         self.ce_code = ce_code
         self.patch_sz = [patch_sz] * \
@@ -86,7 +116,7 @@ class BlurImgDataset(Dataset):
 
         for img_path in self.img_paths:
             if img_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
-                print('Skip a non-image file: %s' % (img_path))
+                print(f'Skip a non-image file: {img_path}')
                 self.img_paths.remove(img_path)
         self.img_num = len(self.img_paths)
         print('===> dataset image num: %d' % self.img_num)
@@ -98,7 +128,7 @@ class BlurImgDataset(Dataset):
                               for psf_name in psf_names]
             for psf_path in self.psf_paths:
                 if psf_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
-                    print('Skip a non-image file:%s' % (psf_path))
+                    print(f'Skip a non-image file:{psf_path}')
                     self.psf_paths.remove(psf_path)
             self.psf_num = len(psf_names)
             print('===> dataset psf num: %d' % self.psf_num)
@@ -164,8 +194,12 @@ class BlurImgDataset(Dataset):
             psfk = psfk*sum(self.ce_code)/len(self.ce_code)
 
         # convolve image with psf
+        # circular convolution
         coded_blur_img = ndimage.filters.convolve(
             imgk, np.expand_dims(psfk, axis=2), mode='wrap').astype(np.float32)
+        # # valid convolution
+        # coded_blur_img = ndimage.filters.convolve(
+        #     imgk, np.expand_dims(psfk, axis=2), mode='constant', cval=0.0).astype(np.float32)
 
         # add noise
         if self.noise_type == 'gaussian':
@@ -195,7 +229,7 @@ class BlurImgDataset(Dataset):
 
         # return [C,H,W]
         return coded_blur_img_noisy.transpose(2, 0, 1), psfk.transpose(2, 0, 1), imgk.transpose(2, 0, 1)
-    
+
 
     def __len__(self):
         return self.img_num
@@ -204,7 +238,7 @@ class BlurImgDataset(Dataset):
 class BlurImgDataset_all2CPU(Dataset):
     """
     generate blurry images from loaded sharp images, load entire dataset to CPU to speed the data load process
-    test mode: 
+    test mode:
         - one2all: every kernel maps to every image
         - one2part: every kernel maps to a part of images (img_num/kernel_num)
     """
@@ -345,8 +379,12 @@ class BlurImgDataset_all2CPU(Dataset):
             psfk = psfk*sum(self.ce_code)/len(self.ce_code)
 
         # convolve image with psf
+        # circular convolution
         coded_blur_img = ndimage.filters.convolve(
             imgk, np.expand_dims(psfk, axis=2), mode='wrap').astype(np.float32)
+        # # valid convolution
+        # coded_blur_img = ndimage.filters.convolve(
+        #     imgk, np.expand_dims(psfk, axis=2), mode='constant', cval=0.0).astype(np.float32)
 
         # add noise
         if self.noise_type == 'gaussian':
@@ -381,7 +419,7 @@ class BlurImgDataset_Exp_all2CPU(Dataset):
     load blurry image, kernel, and ground truth (for 'simuexp' exp) for normal experiments, load entire dataset to CPU to speed the data load process. (image format data)
     exp_mode:
         - simuexp: with gt
-        - realexp: no gt   
+        - realexp: no gt
     patch_sz: assign image size of patch processing to save GPU memory, default = None, use whole image (TODO: patch processing and stitching)
     """
 
@@ -546,8 +584,8 @@ def get_data_loaders(img_dir, ce_code=None, patch_size=256, batch_size=8, tform_
     else:
         raise(ValueError(
             "$Status can only be 'train'|'debug'|'test'|'valid'|'simuexp'|'realexp'"))
-    
-    
+
+
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(__file__) + os.sep + '../')
     # from srcs.utils import utils_blurkernel_zzh
