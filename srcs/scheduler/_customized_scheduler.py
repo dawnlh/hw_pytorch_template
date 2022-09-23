@@ -1,5 +1,5 @@
 import numpy as np
-
+from torch.optim import lr_scheduler
 
 
 class WarmupCosineLR(lr_scheduler._LRScheduler):
@@ -7,7 +7,7 @@ class WarmupCosineLR(lr_scheduler._LRScheduler):
         """
         Description:
             - get warmup consine lr scheduler
-        
+
         Arguments:
             - optimizer: (torch.optim.*), torch optimizer
             - lr_min: (float), minimum learning rate
@@ -15,7 +15,7 @@ class WarmupCosineLR(lr_scheduler._LRScheduler):
             - warm_up: (int),  warm_up epoch or iteration
             - T_max: (int), maximum epoch or iteration
             - start_ratio: (float), to control epoch 0 lr, if ratio=0, then epoch 0 lr is lr_min
-        
+
         Example:
             <<< epochs = 100
             <<< warm_up = 5
@@ -27,7 +27,7 @@ class WarmupCosineLR(lr_scheduler._LRScheduler):
             <<<     cosine_lr.step()
             <<< plt.plot(lrs, color='r')
             <<< plt.show()
-        
+
         """
         self.lr_min = lr_min
         self.lr_max = lr_max
@@ -53,7 +53,7 @@ class WarmupCosineLR(lr_scheduler._LRScheduler):
             # this works fine
             lr = self.lr_min + (self.lr_max - self.lr_min) * 0.5 *\
                 (np.cos((self.cur - self.warm_up) /
-                 (self.T_max - self.warm_up) * np.pi) + 1)
+                        (self.T_max - self.warm_up) * np.pi) + 1)
 
         self.cur += 1
 

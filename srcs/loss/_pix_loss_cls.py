@@ -43,7 +43,6 @@ class WeightedLoss(nn.Module):
                     f"the Key({k})'s Value {v} in Dict(loss_conf_dict) should be scalar(weight) | list[weight, args] ")
 
     def forward(self, output, target):
-        print(LOSSES)
         loss_v = 0
         for loss in self.losses:
             loss_v += loss['cls'](output, target)*loss['weight']

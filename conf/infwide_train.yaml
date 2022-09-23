@@ -25,7 +25,7 @@ trainer:
   limit_val_batches:           # maximal validation batches: empty for all
   monitor: min loss/valid      # monitor for early stop: max calc_psnr/valid | min loss/valid
   saving_top_k: 5              # save top k checkpoints (best checkpoints saved separately)
-  early_stop: 100              # stop if no improvement in consecutive $early_stop epoches, 10
+  early_stop: 100              # stop if no improvement in consecutive $early_stop epochs, 10
   logging_step: 500            # 200/2000 for 5k/500 dataset images | one log / $logging_step iteration
   tensorboard: true            # use tensorboard for training log
   final_test: False            # do test after the training
