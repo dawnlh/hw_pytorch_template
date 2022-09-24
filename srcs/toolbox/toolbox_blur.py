@@ -15,12 +15,12 @@ import scipy.io as sio
 import random
 
 '''
-some codes are copied/modified from 
+some codes are copied/modified from
     Kai Zhang (github: https://github.com/cszn)
     https://github.com/twhui/SRGAN-pyTorch
     https://github.com/xinntao/BasicSR
 
-Last modified: 2021-10-28 Zhihong Zhang 
+Last modified: 2021-10-28 Zhihong Zhang
 '''
 
 # ===============
@@ -457,12 +457,14 @@ if FLAG_traj_psf:
 if FLAG_psf_blur_image:
     # param & path
     noise_level = 0
-    img_idxs = list(range(40))  # corresponding idx
-    psf_idxs = list(range(40))  # corresponding idx
+    # corresponding idx, -1 means all files
+    img_idxs = -1  # list(range(100))
+    # corresponding idx, -1 means psf_idxs=img_idxs
+    psf_idxs = -1  # list(range(100))
 
-    psf_dir = '/hdd/1/zzh/project/CED-Net/dataset/benchmark/pair_ce_random_psf1'
-    img_dir = '/hdd/1/zzh/project/CED-Net/dataset/benchmark/DIV2K_valid_HR40'
-    save_dir = './outputs/tmp/blurImage/'
+    psf_dir = './dataset/benchmark/pair_traj_psf/ce-raskar_psf/'  # ce-raskar_psf | box_psf
+    img_dir = './dataset/benchmark/Sun_rgb/orig/'
+    save_dir = './outputs/tmp/blur_pair_traj_psf_ce-raskar/'  # ce-raskar | box
 
     # get path & gen dir
     img_names = sorted(os.listdir(img_dir))
@@ -470,8 +472,13 @@ if FLAG_psf_blur_image:
     img_num = len(img_names)
     psf_num = len(psf_names)
 
+    if img_idxs == -1:
+        img_idxs = list(range(img_num))
+    if psf_idxs == -1:
+        psf_idxs = img_idxs
+
     assert img_num >= len(img_idxs) and psf_num >= len(
-        psf_idxs), 'Error: Given idx > Total file num'
+        psf_idxs), f'Error: Given idx num: img {len(img_idxs)}, psf {len(psf_idxs)} > Total file num: img {img_num}, psf {psf_num}'
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir, exist_ok=True)
@@ -479,7 +486,7 @@ if FLAG_psf_blur_image:
     # blur image
     cnt = 0
     for psf, t in zip(psf_idxs, img_idxs):
-        print('--> PSF-%d, Image-%d' % (psf, t))
+        print('--> PSF-%d, Image-%d' % (psf+1, t+1))
         # psf
         psf_k = cv2.imread(opj(psf_dir, psf_names[psf]))
         assert psf_k is not None, 'psf_%d is None' % psf
@@ -505,17 +512,3 @@ if FLAG_psf_blur_image:
         cnt += 1
         cv2.imwrite(opj(save_dir, 'blur_img%03d.png' % cnt),
                     noisy_blur_tmp, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-
-
-# %% generate psf
-if FLAG_kair_psf:
-    from utils import utils_deblur_kair
-    save_dir = './outputs/tmp3/'
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    for k in range(98):
-        psf = utils_deblur_kair.blurkernel_synthesis_zzh(37)
-        psf = psf/np.max(psf)*255
-        print("PSF_%02d" % (k+1))
-        cv2.imwrite(opj(save_dir, 'psf%02d.png' % (k+1)),
-                    psf, [cv2.IMWRITE_PNG_COMPRESSION, 0])
