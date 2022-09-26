@@ -439,7 +439,7 @@ def solve_min_laplacian(boundary_image):
     return img_direct
 
 
-def warp_pad_size(img_sz, k_size):
+def wrap_pad_size(img_sz, k_size):
     # params: image size; kernel size
     w = img_sz[0]
     h = img_sz[1]

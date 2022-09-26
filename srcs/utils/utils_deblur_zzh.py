@@ -12,6 +12,7 @@ import random
 from os.path import join as opj
 import torch.nn.functional as F
 from scipy.signal import fftconvolve
+from scipy import ndimage
 
 '''
 some codes are copied/modified from
@@ -22,7 +23,6 @@ some codes are copied/modified from
 
 Last modified: 2021-10-28 Zhihong Zhang
 '''
-
 
 # ===============
 # Fourier transformation
@@ -50,17 +50,113 @@ def p2o(psf, shape):
     return otf
 
 # ===============
+# image blurring
+# ===============
+
+
+def img_blur(img, psf, noise_level=0.01, mode='circular', cval=0):
+    """
+    blur image with blur kernel
+
+    Args:
+        img (ndarray): gray or rgb sharp image,[H, W <,C>]
+        psf (ndarray): blur kernel,[H, W <,C>]
+        noise_level (scalar): gaussian noise std (0-1)
+        mode (str): convolution mode, 'circular' ('wrap') | 'constant' | ...
+        cval: padding value for 'constant' padding
+
+        refer to ndimage.filters.convolve for specific param setting
+
+    Returns:
+        x: blurred image
+    """
+    # convolution
+    if mode == 'circular':
+        # in ndimage.filters.convolve, 'circular'=='wrap'
+        mode = 'wrap'
+    if img.ndim == 3 and psf.ndim == 2:
+        # rgb image
+        psf = np.expand_dims(psf, axis=2)
+
+    blur_img = ndimage.filters.convolve(
+        img, psf, mode=mode, cval=cval)
+
+    # add Gaussian noise
+    blur_noisy_img = blur_img + \
+        np.random.normal(0, noise_level, blur_img.shape)
+    return blur_noisy_img.astype(np.float32)
+
+
+def img_blur_torch(img, psf, noise_level=0.01, pad_mode='circular', pad_value=0.0):
+    """
+    a sharp image blurred by a blur kernel (torch version)
+
+    Args:
+        img (torch tensor): 4D image batch, [N,C,H,W]
+        psf (torch tensor): 4D blur kernel batch [N,C,H,W]
+        noise_level (scalar): gaussian noise level (0-1)
+        pad_mode (str): padding mode
+        pad_value (int): padding value for 'constant' padding mode
+
+
+    Returns:
+        blur_img (torch tensor): 4D blurry image batch
+    """
+
+    N1, C1, H1, W1 = img.shape
+    N2, C2, H2, W2 = psf.shape
+    assert N1 == N2, 'img and psf should have the same batch size'
+
+    # match dimension
+    if C1 != C2:
+        # expand 1 channel psf to 3 channel
+        psf = psf.expand([N2, C1, H2, W2]).contiguous()
+
+    psf_sz = psf.shape[-2:]
+
+    # sharp image padding
+    img_pad = pad4conv(img, psf_sz, mode=pad_mode, value=pad_value)
+
+    # convolvolution of sharp image and kernel
+    blur_img = torch.zeros_like(img)
+    for k in range(N1*C1):
+        blur_img[k//3, k % 3] = F.conv2d(img_pad[k//3, k % 3].unsqueeze(
+            0).unsqueeze(0), psf[k//3, k % 3].unsqueeze(0).unsqueeze(0), padding='valid').squeeze()
+
+    # add Gaussian noise
+    blur_img = blur_img + \
+        torch.tensor(np.random.normal(0, noise_level,
+                                      blur_img.shape), dtype=torch.float32)
+    return blur_img
+
+# ===============
 # circular padding
 # ===============
 
 
+def pad4conv(tensor, psf_sz, mode='circular', value=0.0):
+    '''
+    padding image for convolution
+
+    tensor (torch tensor):  4D image tensor ([N,C,H,W] ) to be padded
+    psf_sz (list[int]): 2D psf size ([H,W) in convolution
+    mode (str): padding mode, 'circular' (default) | 'constant' | 'reflect' | 'replicate'
+    value (float): padding value for 'constant' padding mode
+    refer to F.pad for specific parameter setting
+    '''
+    x_pad_len, y_pad_len = psf_sz[0]-1, psf_sz[1]-1
+    pad_width = (y_pad_len//2, y_pad_len-y_pad_len//2,
+                 x_pad_len//2, x_pad_len-x_pad_len//2)
+    tensor = F.pad(tensor, pad_width, mode=mode, value=value)
+    return tensor
+
 
 def pad_circular(x, pad):
     """
-    2D image circular padding: pad each side of x with pad elements
+    2D image circular padding
     :param x: img, shape [H, W]
-    :param pad: padding size, int >= 0
-    :return: padded res, [H+2*pad, W+2*pad]
+    :param pad: int >= 0
+    :return:
     """
     x = torch.cat([x, x[0:pad]], dim=0)
     x = torch.cat([x, x[:, 0:pad]], dim=1)
@@ -70,13 +166,12 @@ def pad_circular(x, pad):
     return x
 
 
-
 def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
     """
     :param x: shape [H, W]
-    :param pad: padding size, int >= 0
+    :param pad: int >= 0
     :param dim: the dimension over which the tensors are padded
-    :return: padded res
+    :return:
     """
 
     if isinstance(dim, int):
@@ -96,7 +191,6 @@ def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
         pass
 
     return x
-
 
 # ===============
 # edge taper
@@ -175,4 +269,10 @@ def edgetaper_torch(img, kernel, n_tapers=3):
 
 
 if __name__ == '__main__':
-    pass
+    import torch
+    x = torch.zeros(4, 3, 7, 7)
+    p = torch.zeros(4, 3, 2, 2)
+
+    xp = img_blur_torch(x, p)
+
+    print(xp.shape)

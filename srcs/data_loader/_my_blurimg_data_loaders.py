@@ -484,13 +484,13 @@ class BlurImgDataset_Exp_all2CPU(Dataset):
 
     def real_data_preproc(self, img, kernel):
         # Reducing boundary artifacts in image deconvolution
-        # img_warp = edgetaper_np(img, kernel)
+        # img_wrap = edgetaper_np(img, kernel)
 
         H, W = img.shape[0:2]
         H1, W1 = np.int32(H/2), np.int32(W/2)
-        img_warp = np.pad(img, ((H1, H1), (W1, W1), (0, 0)), mode='symmetric')
+        img_wrap = np.pad(img, ((H1, H1), (W1, W1), (0, 0)), mode='symmetric')
 
-        return img_warp
+        return img_wrap
 
     def __getitem__(self, idx):
         # load psf
