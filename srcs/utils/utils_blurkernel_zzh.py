@@ -13,7 +13,7 @@ from os.path import join as opj
 
 
 '''
-some codes are copied/modified from 
+some codes are copied/modified from
     https://github.com/cszn
     https://github.com/twhui/SRGAN-pyTorch
     https://github.com/xinntao/BasicSR
@@ -22,7 +22,7 @@ some codes are copied/modified from
 More kernel generation methods:
     - https://github.com/donggong1/learn-optimizer-rgdn/blob/master/data/make_kernel.py
 
-Last modified: 2021-10-28 Zhihong Zhang 
+Last modified: 2021-10-28 Zhihong Zhang
 '''
 
 # ===============
@@ -420,7 +420,7 @@ def create_random_trajectory(trajectory_size=64, anxiety=0.005, num_samples=2000
 # ------------------------------------------ Boracchi's method -------------------------------------------
 
 
-# ------------------------------------------- Schmidt's method ------------------------------------------
+# ------------------------------------------- Schmidt's method >> ------------------------------------------
 # Schmidt's method (similar to KAIR's implementation - KaiZhang, but add control params and no gaussian kernek and resize op)
 def randomBlurKernelSynthesis(motion_len_r=[1, 100], motion_len_n=250, psf_sz=37, curvature_param=1):
     '''
@@ -457,7 +457,7 @@ def randomBlurKernelSynthesis(motion_len_r=[1, 100], motion_len_n=250, psf_sz=37
 
 def randomTrajectory(motion_len_r, motion_len_n, motion_thr, curvature_param=1, max_try_times=100):
     '''
-    generate random traj (MOTION_LEN_N points) with length belong to MOTION_LEN and range within MOTION_THR
+    generate random traj (MOTION_LEN_N points) with length belong to MOTION_LEN_R and range within MOTION_THR
     motion_len_r: kernel length range (pixel)
     motion_len_n: num of traj points (will affect the traj shape)
     motion_thr:   threshold of the trajectory's bounding box's size
@@ -549,9 +549,9 @@ def kernelFromTrajectory(x, psf_sz, traj_v=1):
     return psf
 
 
-# ------------------------------------------- Schmidt's method ------------------------------------------
+# ------------------------------------------- Schmidt's method << ------------------------------------------
 
-# ------------------------------------------- Kair's method ------------------------------------------
+# ------------------------------------------- Kair's method >> ------------------------------------------
 
 def blurkernel_synthesis_kair(h=37, w=None):
     # function: randomly generate different type of kernels (motion blur, gaussian, )
@@ -650,7 +650,7 @@ def randomTrajectory_kair(T):
         x[:, t] = x[:, t - 1] + st
     return x
 
-# ------------------------------------------- Kair's method ------------------------------------------
+# ------------------------------------------- Kair's method << ------------------------------------------
 
 #%% ----- (non) Coded Random Motion Blur -----
 # Based on Schmidt's method
@@ -858,7 +858,7 @@ if __name__ == '__main__':
         # psf = randomBlurKernelSynthesis(
         #     motion_len_n=250,  curvature_param=1)
         psf = codedRandomMotionBlurKernel(
-            motion_len_r=[32, 48],  psf_sz=80, code=ce_code)
+            motion_len_r=[60, 100],  psf_sz=80, code=ce_code)
         psf = psf/np.max(psf)*255
         psfs.append(psf)
         print("kernel_%02d" % (k+1))

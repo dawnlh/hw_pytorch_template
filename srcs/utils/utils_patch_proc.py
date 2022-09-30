@@ -9,6 +9,8 @@ example
     restored = model_restoration(input_re)
     restored = window_reversex(restored, win, Hx, Wx, batch_list)
 
+Note:
+offical function unfold/fold may be a good alternative, see TORCH.TENSOR.UNFOLD/FOLD
 -----
 Copyright https://github.com/INVOKERer/DeepRFT
 
