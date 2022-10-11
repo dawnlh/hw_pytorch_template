@@ -25,7 +25,7 @@ class TensorboardWriter():
 
     def set_step(self, step, speed_chk=None):  # phases = 'train'|'valid'|None
         self.step = step
-        # measure the calculation speed by call this function between 2 steps (steps_per_sec) 
+        # measure the calculation speed by call this function between 2 steps (steps_per_sec)
         if speed_chk and step != 0:
             duration = datetime.now() - self.timer
             self.add_scalar(f'steps_per_sec/{speed_chk}',
@@ -52,13 +52,15 @@ class TensorboardWriter():
                 raise AttributeError('unimplemented attribute')
             return attr
 
+
 class BatchMetrics:
     def __init__(self, *keys, postfix='', writer=None):
         self.writer = writer
         self.postfix = postfix
         if postfix:
             keys = [k+postfix for k in keys]
-        self._data = pd.DataFrame(index=keys, columns=['total', 'counts', 'average'])
+        self._data = pd.DataFrame(
+            index=keys, columns=['total', 'counts', 'average'])
         self.reset()
 
     def reset(self):
@@ -72,7 +74,8 @@ class BatchMetrics:
             self.writer.add_scalar(key, value)
         self._data.total[key] += value * n
         self._data.counts[key] += n
-        self._data.average[key] = self._data.total[key] / self._data.counts[key]
+        self._data.average[key] = self._data.total[key] / \
+            self._data.counts[key]
 
     def avg(self, key):
         if self.postfix:
@@ -82,14 +85,17 @@ class BatchMetrics:
     def result(self):
         return dict(self._data.average)
 
+
 class EpochMetrics:
-    def __init__(self, metric_names, phases=('train', 'valid'), monitoring='off'):
+    def __init__(self, metric_names, phases=('train', 'valid'), monitoring='off', writer=None):
         self.logger = get_logger('epoch-metrics')
         # setup pandas DataFrame with hierarchical columns
         columns = tuple(product(metric_names, phases))
         self._data = pd.DataFrame(columns=columns)
-        self.monitor_mode, self.monitor_metric = self._parse_monitoring_mode(monitoring)
+        self.monitor_mode, self.monitor_metric = self._parse_monitoring_mode(
+            monitoring)
         self.topk_idx = []
+        self.writer = writer
 
     def minimizing_metric(self, idx):
         if self.monitor_mode == 'off':
@@ -136,7 +142,8 @@ class EpochMetrics:
                 to_delete = self.topk_idx[-1]
 
             # delete checkpoint having out-of topk metric
-            filename = str(checkpt_dir / 'checkpoint-epoch{}.pth'.format(to_delete.split('-')[1]))
+            filename = str(
+                checkpt_dir / 'checkpoint-epoch{}.pth'.format(to_delete.split('-')[1]))
             try:
                 os.remove(filename)
             except FileNotFoundError:
@@ -146,10 +153,16 @@ class EpochMetrics:
 
     def update(self, epoch, result):
         epoch_idx = f'epoch-{epoch}'
-        self._data.loc[epoch_idx] = {tuple(k.split('/')):v for k, v in result.items()}
+        self._data.loc[epoch_idx] = {
+            tuple(k.split('/')): v for k, v in result.items()}
 
         self.topk_idx.append(epoch_idx)
         self.topk_idx = sorted(self.topk_idx, key=self.minimizing_metric)
+
+        # write epoch info to tensorboard
+        if self.writer is not None:
+            for k, v in result.items():
+                self.writer.add_scalar(k + '/epoch', v)
 
     def latest(self):
         return self._data[-1:]

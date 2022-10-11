@@ -2,11 +2,12 @@ import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
 from abc import abstractmethod, ABCMeta
+from torchvision.utils import make_grid
 from pathlib import Path
 from shutil import copyfile
 from numpy import inf
 import time
-from srcs.utils._util import write_conf, is_master, get_logger
+from srcs.utils._util import write_conf, is_master, get_logger, collect
 from srcs.logger import TensorboardWriter, EpochMetrics
 import os
 
@@ -67,7 +68,9 @@ class BaseTrainer(metaclass=ABCMeta):
             self.writer = TensorboardWriter(log_dir, False)
 
         if config.resume is not None:
-            self._resume_checkpoint(config.resume)
+            resume_conf = config.get(
+                'resume_conf', [])  # resume config
+            self._resume_checkpoint(config.resume, resume_conf)
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -143,6 +146,50 @@ class BaseTrainer(metaclass=ABCMeta):
                 '*** Finish Training *** \n\n ===> Start Testing (Using Latest Checkpoint)\n')
             self._test_epoch()
 
+    def _after_iter(self, epoch, batch_idx, phase, loss, metrics, image_tensors: dict):
+        # TBD
+        # hook after iter
+        self.writer.set_step(
+            (epoch - 1) * getattr(self, f'limit_{phase}_batches') + batch_idx, speed_chk=f'{phase}')
+
+        loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
+        getattr(self, f'{phase}_metrics').update('loss', loss_v)
+
+        for k, v in metrics.items():
+            getattr(self, f'{phase}_metrics').update(k, v)
+
+        for k, v in image_tensors.items():
+            self.writer.add_image(
+                f'{phase}/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+
+    def _after_epoch(self, ep, result, time_cost):
+        # TBD
+        # hook after epoch
+        # choose model
+        ep_metrics = getattr(self, 'ep_metrics')
+
+        # write result metrics to tensorboard
+        self.writer.set_step(ep)
+        ep_metrics.update(ep, result)
+
+        # print result metrics of this epoch
+        max_line_width = max(len(line)
+                             for line in str(ep_metrics).splitlines())
+        # divider ---
+        self.logger.info('-' * max_line_width)
+        self.logger.info('\n' + str(ep_metrics.latest()) + '\n')
+
+        ep_metrics.to_csv(f'epoch-results.csv')
+
+        # divider ===
+        self.logger.info(
+            f'Epoch Time Cost: {time_cost:.2f}s')
+        self.logger.info('=' * max_line_width)
+
+        # saving checkpoint
+        # self._save_checkpoint(
+        #     ep, save_best=is_best, save_latest=using_topk_save)
+
     def _save_checkpoint(self, epoch, save_best=False, save_latest=True):
         """
         Saving checkpoints
@@ -176,20 +223,15 @@ class BaseTrainer(metaclass=ABCMeta):
             self.logger.info(
                 f"Renewing best checkpoint: \n    .../{best_path}\n")
 
-    def _resume_checkpoint(self, resume_path):
+    def _resume_checkpoint(self, resume_path, resume_conf=[]):
         """
         Resume from saved checkpoints
 
-        :param resume_path: Checkpoint path to be resumed
+        :param resume_conf: resume config that controls what to resume
         """
 
-        resume_path = self.config.resume
         self.logger.info(f"Loading checkpoint: {resume_path} ...")
         checkpoint = torch.load(resume_path)
-        self.start_epoch = checkpoint['epoch'] + 1
-
-        #  zzh: cancel to save/load ep_metrics to/from checkpoints, as it causes TypeError: can't pickle _thread.RLock objects
-        # self.ep_metrics = checkpoint['epoch_metrics']
 
         # load architecture params from checkpoint.
         if checkpoint['config']['arch'] != self.config['arch']:
@@ -198,14 +240,19 @@ class BaseTrainer(metaclass=ABCMeta):
         self.model.load_state_dict(checkpoint['state_dict'])
 
         # load optimizer state from checkpoint only when optimizer type and learning rate configuration is not changed.
-        if checkpoint['config']['optimizer']['_target_'] != self.config['optimizer']['_target_'] or checkpoint['config']['optimizer']['lr'] != self.config['optimizer']['lr']:
-            self.logger.warning(
-                "Warning: Optimizer type/learning rate in the checkpoint is different from that of the current config file. Use setting in current config")  # Resume and use the checkpoint Optimizer
-        else:
+        if 'optimizer' in resume_conf:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
+            self.logger.info(
+                f'Optimizer resumed from the loaded checkpoint!')
 
-        self.logger.info(
-            f"Checkpoint loaded. Resume training from epoch {self.start_epoch}")
+        # resume epoch start point
+        if 'epoch' in resume_conf:
+            self.start_epoch = checkpoint['epoch'] + 1
+            self.logger.info(
+                f"Start training model from resumed epoch ({checkpoint['epoch']}).")
+        else:
+            self.logger.info(
+                f"Start training model from restarted epoch (1).")
 
         # for others' codes
         # self.model.load_state_dict(torch.load(resume_path))

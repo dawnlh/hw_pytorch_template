@@ -14,7 +14,7 @@ import cv2
 
 class infwide(nn.Module):
     '''
-    image and feature space multi-scale deconvolution network, cross residual fusion: 
+    image and feature space multi-scale deconvolution network, cross residual fusion:
     '''
 
     def __init__(self, n_colors, input_denoise=None):

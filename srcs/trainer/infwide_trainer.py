@@ -10,7 +10,7 @@ from srcs.utils._util import collect, instantiate, get_logger
 from srcs.logger import BatchMetrics
 import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_deblur_zzh import circular_padding
+from srcs.utils.utils_deblur_zzh import pad4conv
 # ======================================
 # Trainer: modify '_train_epoch'
 # ======================================
@@ -107,7 +107,7 @@ class Trainer(BaseTrainer):
                 kernel_sz = kernel_flip.shape[2:]
                 output_ = output[1]
                 N, C, H, W = output_.shape
-                output_pad = circular_padding(output_, kernel_sz)
+                output_pad = pad4conv(output_, kernel_sz)
                 forward_conv = torch.zeros_like(output_)
                 for k in range(N*C):
                     forward_conv[k//3][k % 3] = F.conv2d(output_pad[k//3][k % 3].unsqueeze(
@@ -121,7 +121,7 @@ class Trainer(BaseTrainer):
             self.optimizer.zero_grad()
             loss.backward()
 
-            
+
             # clip gradient
             self.clip_gradient(self.optimizer, self.grad_clip)
             self.optimizer.step()

@@ -87,7 +87,7 @@ def img_blur(img, psf, noise_level=0.01, mode='circular', cval=0):
     return blur_noisy_img.astype(np.float32)
 
 
-def img_blur_torch(img, psf, noise_level=0.01, pad_mode='circular', pad_value=0.0):
+def img_blur_torch(img, psf, noise_level=0.0, conv_mode='conv', pad_mode='circular', pad_value=0.0):
     """
     a sharp image blurred by a blur kernel (torch version)
 
@@ -95,6 +95,7 @@ def img_blur_torch(img, psf, noise_level=0.01, pad_mode='circular', pad_value=0.
         img (torch tensor): 4D image batch, [N,C,H,W]
         psf (torch tensor): 4D blur kernel batch [N,C,H,W]
         noise_level (scalar): gaussian noise level (0-1)
+        conv_mode: convolution mode,'corr' | 'conv', implemented by flip the blur kernel
         pad_mode (str): padding mode
         pad_value (int): padding value for 'constant' padding mode
 
@@ -112,9 +113,12 @@ def img_blur_torch(img, psf, noise_level=0.01, pad_mode='circular', pad_value=0.
         # expand 1 channel psf to 3 channel
         psf = psf.expand([N2, C1, H2, W2]).contiguous()
 
-    psf_sz = psf.shape[-2:]
+    # flip psf
+    if conv_mode == 'conv':
+        psf = psf.flip(-2, -1)
 
     # sharp image padding
+    psf_sz = psf.shape[-2:]
     img_pad = pad4conv(img, psf_sz, mode=pad_mode, value=pad_value)
 
     # convolvolution of sharp image and kernel
@@ -124,9 +128,10 @@ def img_blur_torch(img, psf, noise_level=0.01, pad_mode='circular', pad_value=0.
             0).unsqueeze(0), psf[k//3, k % 3].unsqueeze(0).unsqueeze(0), padding='valid').squeeze()
 
     # add Gaussian noise
-    blur_img = blur_img + \
-        torch.tensor(np.random.normal(0, noise_level,
-                                      blur_img.shape), dtype=torch.float32)
+    if noise_level > 0:
+        blur_img = blur_img + \
+            torch.tensor(np.random.normal(0, noise_level,
+                                          blur_img.shape), dtype=torch.float32)
     return blur_img
 
 # ===============
@@ -155,7 +160,7 @@ def pad_circular(x, pad):
     """
     2D image circular padding
     :param x: img, shape [H, W]
-    :param pad: int >= 0
+    :param pad: pad size,int >= 0
     :return:
     """
     x = torch.cat([x, x[0:pad]], dim=0)

@@ -6,7 +6,7 @@ img_dir: ${hydra:runtime.cwd}/dataset/train_data/Kodak24/ # image | for debug
 
 batch_size: ${batch_size}
 patch_size: ${patch_size}
-tform_op: 'all' # 'flip' | 'rotate' | 'reverse' 
+tform_op: 'all' # 'flip' | 'rotate' | 'reverse'
 noise_type: 'camera' # 'gaussian' | 'camera'
 # noise_params: {'sigma': 0.05} # for gaussian
 noise_params: {'sigma_beta': [0.01, 0.03], 'sigma_r': [0.5, 4], 'nd_factor': [2, 8], 'kc': [4,16]} # for camera,exp
