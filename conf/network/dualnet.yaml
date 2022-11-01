@@ -1,0 +1,54 @@
+# @package _global_
+network_name: dualnet
+
+arch_a:
+  _target_: srcs.model.dualnet_model.model_a
+  n_colors: 3
+  psf_sz: ${psf_sz}
+  kernel_size: [1, 21, 11, 5] # [1, 7, 5, 3]
+
+arch_b:
+  _target_: srcs.model.dualnet_model.model_b
+  n_colors: 3
+
+loss_all: {loss_a: 0.5, loss_b: 0.5}
+
+loss_a:
+  weights: {gt_loss: 100, reblur_loss: 0.4} # gt_loss, reblur_loss
+  gt_loss:
+    _target_: srcs.loss._pix_loss_func.charbonnier_loss
+    # _target_: srcs.loss._pix_loss_func.weighted_loss
+    # loss_conf_dict: {charbonnier_loss: 0.5, fft_loss: 0.5}
+  reblur_loss:
+    _target_: srcs.loss._pix_loss_func.charbonnier_loss
+
+loss_b:
+  weights: {gt_loss: 0.6,  reblur_loss: 0.4} # gt_loss, reblur_loss
+  gt_loss:
+    _target_: srcs.loss._pix_loss_func.charbonnier_loss
+    # _target_: srcs.loss._pix_loss_func.weighted_loss
+    # loss_conf_dict: {l1_loss: 0.4, mse_loss: 0.2, ssim_loss: 0.2, tv_loss: 0.2}
+  reblur_loss:
+    _target_: srcs.loss._pix_loss_func.charbonnier_loss
+
+optimizer_a:
+  _target_: torch.optim.Adam
+  lr: ${learning_rate}
+  weight_decay: ${weight_decay}
+  amsgrad: true
+
+optimizer_b:
+  _target_: torch.optim.Adam
+  lr: ${learning_rate}
+  weight_decay: ${weight_decay}
+  amsgrad: true
+
+lr_scheduler_a:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: ${scheduler_step_size}
+  gamma: ${scheduler_gamma}
+
+lr_scheduler_b:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: ${scheduler_step_size}
+  gamma: ${scheduler_gamma}
