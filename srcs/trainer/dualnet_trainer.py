@@ -10,11 +10,12 @@ from shutil import copyfile
 from pathlib import Path
 from omegaconf import OmegaConf
 from ._base2 import BaseTrainer2
-from srcs.utils.util import inf_loop, collect, instantiate, get_logger
+from srcs.utils._util import inf_loop, collect, instantiate, get_logger
 from srcs.utils.utils_patch_proc import window_partitionx, window_reversex
 from srcs.logger import BatchMetrics, TensorboardWriter, EpochMetrics
-from srcs.utils.util import write_conf, is_master
+from srcs.utils._util import write_conf, is_master
 from srcs.utils.utils_deblur_zzh import pad4conv, img_blur_torch
+from ptflops import get_model_complexity_info
 
 # ======================================
 # Trainer: modify '_train_epoch'
@@ -554,10 +555,16 @@ def train_worker(config):
         f'Trainable parameters for KNet: {sum([p.numel() for p in trainable_params])}')
 
     model_b = instantiate(config.arch_b)
-    trainable_params = filter(lambda p: p.requires_grad, model_b.parameters())
-    logger.info(model_b)
-    logger.info(
-        f'Trainable parameters for DNet: {sum([p.numel() for p in trainable_params])}')
+    # build model. print it's structure and # trainable params.
+    model = instantiate(config.arch)
+    logger.info(model)
+    # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # logger.info(
+    #     f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+    macs, params = get_model_complexity_info(
+        model=model, input_res=(3, config.patch_size, config.patch_size), verbose=False, print_per_layer_stat=False)
+    logger.info('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    logger.info('{:<30}  {:<8}'.format('Number of parameters: ', params))
 
     # get function handles of loss
     criterion_a = {}

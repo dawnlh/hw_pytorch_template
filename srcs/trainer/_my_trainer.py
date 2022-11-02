@@ -10,7 +10,8 @@ from srcs.utils._util import collect, instantiate, get_logger
 from srcs.logger import BatchMetrics
 import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_deblur_zzh import circular_padding
+from srcs.utils.utils_deblur_zzh import pad4conv
+from ptflops import get_model_complexity_info
 # ======================================
 # Trainer: modify '_train_epoch'
 # ======================================
@@ -50,13 +51,10 @@ class Trainer(BaseTrainer):
         self.valid_metrics = BatchMetrics(
             *args, postfix='/valid', writer=self.writer)
         self.grad_clip = 0.5  # optimizer gradient clip value
-        
-        # for this proj 
+
+        # for this proj
         self.n_levels = 2  # model scale levels
         self.scales = [0.5, 1]  # model scale
-        
-        
-
 
     def clip_gradient(self, optimizer, grad_clip=0.5):
         """
@@ -111,7 +109,7 @@ class Trainer(BaseTrainer):
                 kernel_sz = kernel_flip.shape[2:]
                 output_ = output[1]
                 N, C, H, W = output_.shape
-                output_pad = circular_padding(output_, kernel_sz)
+                output_pad = pad4conv(output_, kernel_sz)
                 forward_conv = torch.zeros_like(output_)
                 for k in range(N*C):
                     forward_conv[k//3][k % 3] = F.conv2d(output_pad[k//3][k % 3].unsqueeze(
@@ -125,7 +123,6 @@ class Trainer(BaseTrainer):
             self.optimizer.zero_grad()
             loss.backward()
 
-            
             # clip gradient
             self.clip_gradient(self.optimizer, self.grad_clip)
             self.optimizer.step()
@@ -494,7 +491,7 @@ class Trainer(BaseTrainer):
                 kernel_sz = kernel_flip.shape[2:]
                 output_ = output[1]
                 N, C, H, W = output_.shape
-                output_pad = circular_padding(output_, kernel_sz)
+                output_pad = pad4conv(output_, kernel_sz)
                 forward_conv = torch.zeros_like(output_)
                 for k in range(N*C):
                     forward_conv[k//3][k % 3] = F.conv2d(output_pad[k//3][k % 3].unsqueeze(
@@ -718,10 +715,14 @@ def train_worker(config):
 
     # build model. print it's structure and # trainable params.
     model = instantiate(config.arch)
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     logger.info(model)
-    logger.info(
-        f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+    # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # logger.info(
+    #     f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+    macs, params = get_model_complexity_info(
+        model=model, input_res=(3, config.patch_size, config.patch_size), verbose=False, print_per_layer_stat=False)
+    logger.info('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    logger.info('{:<30}  {:<8}'.format('Number of parameters: ', params))
 
     # get function handles of loss and metrics
     criterion = {}

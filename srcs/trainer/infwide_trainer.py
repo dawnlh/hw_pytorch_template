@@ -11,6 +11,8 @@ from srcs.logger import BatchMetrics
 import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 from srcs.utils.utils_deblur_zzh import pad4conv
+from ptflops import get_model_complexity_info
+
 # ======================================
 # Trainer: modify '_train_epoch'
 # ======================================
@@ -332,10 +334,16 @@ def train_worker(config):
 
     # build model. print it's structure and # trainable params.
     model = instantiate(config.arch)
-    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # build model. print it's structure and # trainable params.
+    model = instantiate(config.arch)
     logger.info(model)
-    logger.info(
-        f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+    # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # logger.info(
+    #     f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+    macs, params = get_model_complexity_info(
+        model=model, input_res=(3, config.patch_size, config.patch_size), verbose=False, print_per_layer_stat=False)
+    logger.info('{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    logger.info('{:<30}  {:<8}'.format('Number of parameters: ', params))
 
     # get function handles of loss and metrics
     criterion = {}

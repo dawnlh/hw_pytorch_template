@@ -9,6 +9,7 @@ conda:
 pip:
     hydra-core>=1.0.3
     hydra_colorlog
+    ptflops
     tqdmp
     opencv-python
     pytorch-msssim
