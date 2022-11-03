@@ -9,7 +9,7 @@ from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-
+from srcs.utils.utils_eval_zzh import gpu_inference_time_est
 
 def testing(gpus, config):
     test_worker(gpus, config)
@@ -74,6 +74,12 @@ def test(test_data_loader, model,  device, criterion, metrics, config):
 
     # init
     model = model.to(device)
+
+    # inference time test
+    input_shape = (1, 3, 256, 256)  # test image size
+    gpu_inference_time_est(model, input_shape)
+
+    # eval
     model.eval()
     total_loss = 0.0
     total_metrics = torch.zeros(len(metrics))
