@@ -721,8 +721,10 @@ def train_worker(config):
     #     f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
     macs, params = get_model_complexity_info(
         model=model, input_res=(3, config.patch_size, config.patch_size), verbose=False, print_per_layer_stat=False)
-    logger.info('{:<30}  {:<8}'.format('Computational complexity: ', macs))
-    logger.info('{:<30}  {:<8}'.format('Number of parameters: ', params))
+    logger.info(
+        '='*40+'\n{:<30}  {:<8}'.format('Computational complexity: ', macs))
+    logger.info('{:<30}  {:<8}\n'.format(
+        'Number of parameters: ', params)+'='*40)
 
     # get function handles of loss and metrics
     criterion = {}

@@ -9,11 +9,12 @@ hydra:
 ##### dir
 exp_name: code_dev/expname     # experiment name
 status: train                  # run status: train|debug
+# resume_conf: [epoch, optimizer]   # resume configuration, default=[epoch, optimizer]
 resume:                        # resuming checkpoint path (${hydra:runtime.cwd}/xxx )
 checkpoint_dir: checkpoints/   # models saving dir (relative to $dir)
 final_test_dir: final_test/    # final test result saving dir (relative to $dir)
 log_dir: events/               # log file save dir (relative to $dir)
-# outputs_dir: 
+# outputs_dir:
 
 ##### run
 gpus: [1]                   # GPU used, [0,1] | empty (all gpu)
@@ -42,7 +43,7 @@ defaults:
   - data: [train_data]          # dataset config | [_my_train_data,_my_test_data,_my_valid_data]
   - network: _my_net             # network config
   - hparams: _my_hyparams
-  
+
   - override hydra/job_logging : custom # custom || colorlog
   - override hydra/hydra_logging: colorlog
   - _self_

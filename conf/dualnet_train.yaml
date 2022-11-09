@@ -10,7 +10,7 @@ hydra:
 exp_name: code_dev/dualnet  # experiment name
 trainer_name: dualnet_trainer # trainer name
 status: train       # run status: train|test|debug
-resume_conf: [] # [epoch, optimizer]
+resume_conf: [] # resume configuration, default=[epoch, optimizer]
 resume_a:  # resuming checkpoint path (${hydra:runtime.cwd}/ )
 resume_b: # resuming checkpoint path (${hydra:runtime.cwd}/ )
 checkpoint_dir: checkpoints/   # models saving dir (relative to $dir)

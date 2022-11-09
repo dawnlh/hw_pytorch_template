@@ -9,6 +9,7 @@ hydra:
 ##### dir
 exp_name: code_dev/infwide        # experiment name
 status: train                     # run status: train|debug
+# resume_conf: [epoch, optimizer]   # resume configuration, default=[epoch, optimizer]
 resume:                           # resuming checkpoint path (${hydra:runtime.cwd}/ )
 checkpoint_dir: checkpoints/      # models saving dir (relative to $dir)
 final_test_dir: final_test/       # final test result saving dir (relative to $dir)
