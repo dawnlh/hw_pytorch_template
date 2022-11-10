@@ -12,7 +12,6 @@ import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 from srcs.utils.utils_deblur_zzh import pad4conv
 from ptflops import get_model_complexity_info
-
 # ======================================
 # Trainer: modify '_train_epoch'
 # ======================================
@@ -36,25 +35,26 @@ class Trainer(BaseTrainer):
                     "Warning: test dataloader for final test is None, final test is omitted")
                 self.final_test = False
         self.input_denoise_epoch = input_denoise_epoch
+        self.losses = self.config['loss']
         self.lr_scheduler = lr_scheduler
         self.limit_train_iters = config['trainer'].get(
             'limit_train_iters', len(self.data_loader))
         if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
             self.limit_train_iters = len(self.data_loader)
-        self.limit_val_iters = config['trainer'].get(
-            'limit_val_iters', len(self.valid_data_loader))
-        if not self.limit_val_iters or self.limit_val_iters > len(self.valid_data_loader):
-            self.limit_val_iters = len(self.valid_data_loader)
+        self.limit_valid_iters = config['trainer'].get(
+            'limit_valid_iters', len(self.valid_data_loader))
+        if not self.limit_valid_iters or self.limit_valid_iters > len(self.valid_data_loader):
+            self.limit_valid_iters = len(self.valid_data_loader)
         args = ['loss', *[m.__name__ for m in self.metric_ftns]]
         self.train_metrics = BatchMetrics(
             *args, postfix='/train', writer=self.writer)
         self.valid_metrics = BatchMetrics(
             *args, postfix='/valid', writer=self.writer)
+        self.grad_clip = 0.5  # optimizer gradient clip value
+
+        # for this proj
         self.n_levels = 2  # model scale levels
         self.scales = [0.5, 1]  # model scale
-        self.grad_clip = 0.5  # optimizer gradient clip value
-        self.losses = self.config['loss']
-
 
     def clip_gradient(self, optimizer, grad_clip=0.5):
         """
@@ -67,6 +67,21 @@ class Trainer(BaseTrainer):
             for param in group["params"]:
                 if param.grad is not None:
                     param.grad.data.clamp_(-grad_clip, grad_clip)
+
+    def _after_iter(self, epoch, batch_idx, phase, loss, metrics, image_tensors: dict):
+        # hook after iter
+        self.writer.set_step(
+            (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}')
+
+        loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
+        getattr(self, f'{phase}_metrics').update('loss', loss_v)
+
+        for k, v in metrics.items():
+            getattr(self, f'{phase}_metrics').update(k, v)
+
+        for k, v in image_tensors.items():
+            self.writer.add_image(
+                f'{phase}/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
 
     def _train_epoch(self, epoch):
         """
@@ -123,36 +138,32 @@ class Trainer(BaseTrainer):
             self.optimizer.zero_grad()
             loss.backward()
 
-
             # clip gradient
             self.clip_gradient(self.optimizer, self.grad_clip)
             self.optimizer.step()
 
-            loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
-            self.writer.set_step(
-                (epoch - 1) * self.limit_train_iters + batch_idx, speed_chk='train')
-            self.train_metrics.update('loss', loss_v)
-
+            # iter record
             if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
-                # save image
-                self.writer.add_image(
-                    'train/_input', make_grid(data_noisy[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'train/_input_denoise', make_grid(data_denoise[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'train/_output', make_grid(output[1][0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'train/_target', make_grid(target[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'train/kernel', make_grid(kernel[0:8, ...].cpu(), nrow=2, normalize=True))
-
+                # iter metrics
+                _output = output[1]
+                iter_metrics = {}
                 for met in self.metric_ftns:
                     if self.config.n_gpu > 1:
                         # average metric between processes
-                        metric_v = collect(met(output[1], target))
+                        metric_v = collect(met(_output, target))
                     else:
-                        metric_v = met(output[1], target)
-                    self.train_metrics.update(met.__name__, metric_v)
+                        # print(output.shape, target.shape)
+                        metric_v = met(_output, target)
+                    iter_metrics.update({met.__name__: metric_v})
+
+                # iter images
+                image_tensors = {
+                    'input': data_noisy[0:4, ...], 'target': target[0:4, ...], 'output': _output[0:4, ...], 'kernel': kernel[0:4, ...]}
+
+                # aftet iter hook
+                self._after_iter(epoch, batch_idx, 'train',
+                                 loss, iter_metrics, image_tensors)
+                # iter log
                 self.logger.info(
                     f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
 
@@ -199,28 +210,28 @@ class Trainer(BaseTrainer):
 
                 loss = self.criterion['main_loss'](output[1], target)
 
-                self.writer.set_step(
-                    (epoch - 1) * len(self.valid_data_loader) + batch_idx, speed_chk='valid')
-
-                # save images
-                self.writer.add_image(
-                    'valid/_input', make_grid(data_noisy[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'valid/_input_denoise', make_grid(data_denoise[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'valid/_output', make_grid(output[1][0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'valid/_target', make_grid(target[0:8, ...].cpu(), nrow=2, normalize=True))
-                self.writer.add_image(
-                    'valid/kernel', make_grid(kernel[0:8, ...].cpu(), nrow=2, normalize=True))
-
-                loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
-                self.valid_metrics.update('loss', loss_v)
+                # iter record
+                # iter metrics
+                _output = output[1]
+                iter_metrics = {}
                 for met in self.metric_ftns:
-                    self.valid_metrics.update(
-                        met.__name__, met(output[1], target))
+                    if self.config.n_gpu > 1:
+                        # average metric between processes
+                        metric_v = collect(met(_output, target))
+                    else:
+                        # print(output.shape, target.shape)
+                        metric_v = met(_output, target)
+                    iter_metrics.update({met.__name__: metric_v})
 
-                if batch_idx == self.limit_val_iters:
+                # iter images
+                image_tensors = {
+                    'input': data_noisy[0:4, ...], 'target': target[0:4, ...], 'output': _output[0:4, ...], 'kernel': kernel[0:4, ...]}
+
+                # aftet iter hook
+                self._after_iter(epoch, batch_idx, 'valid',
+                                 loss, iter_metrics, image_tensors)
+
+                if batch_idx == self.limit_valid_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -332,16 +343,18 @@ def train_worker(config):
     if not valid_data_loader:
         logger.warning('!= validation set  is empty =!')
 
-    # build model. print it's structure and # trainable params.
-    model = instantiate(config.arch)
-    # build model. print it's structure and # trainable params.
+    # build model & print its structure
     model = instantiate(config.arch)
     logger.info(model)
-    # trainable_params = filter(lambda p: p.requires_grad, model.parameters())
-    # logger.info(
-    #     f'Trainable parameters: {sum([p.numel() for p in trainable_params])}')
+
+    # calc trainable params and MACs
+    def prepare_input(resolution):
+        data_noisy = torch.FloatTensor(1, 3, *resolution[0])
+        kernel = torch.FloatTensor(1, 1, *resolution[1])
+        return dict(data_noisy=data_noisy, kernel=kernel)
+
     macs, params = get_model_complexity_info(
-        model=model, input_res=(3, config.patch_size, config.patch_size), verbose=False, print_per_layer_stat=False)
+        model=model, input_res=[(config.patch_size, config.patch_size), (64, 64)], input_constructor=prepare_input, verbose=False, print_per_layer_stat=False)
     logger.info(
         '='*40+'\n{:<30}  {:<8}'.format('Computational complexity: ', macs))
     logger.info('{:<30}  {:<8}\n'.format(

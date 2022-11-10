@@ -101,10 +101,10 @@ class BaseTrainer2(metaclass=ABCMeta):
             'limit_train_iters', len(self.data_loader))
         if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
             self.limit_train_iters = len(self.data_loader)
-        self.limit_val_iters = config['trainer'].get(
-            'limit_val_iters', len(self.valid_data_loader))
-        if not self.limit_val_iters or self.limit_val_iters > len(self.valid_data_loader):
-            self.limit_val_iters = len(self.valid_data_loader)
+        self.limit_valid_iters = config['trainer'].get(
+            'limit_valid_iters', len(self.valid_data_loader))
+        if not self.limit_valid_iters or self.limit_valid_iters > len(self.valid_data_loader):
+            self.limit_valid_iters = len(self.valid_data_loader)
 
     def train(self):
         """
@@ -220,7 +220,7 @@ class BaseTrainer2(metaclass=ABCMeta):
 
     def _after_iter(self, epoch, batch_idx, phase, model_id, loss, iter_metrics, image_tensors: dict):
         self.writer.set_step(
-            (epoch - 1) * getattr(self, f'limit_{phase}_batches') + batch_idx, speed_chk=f'{phase}_{model_id}')
+            (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}_{model_id}')
 
         loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
         getattr(self, f'{phase}_metrics_{model_id}').update('loss', loss_v)
@@ -230,7 +230,7 @@ class BaseTrainer2(metaclass=ABCMeta):
 
         for k, v in image_tensors.items():
             self.writer.add_image(
-                f'{phase}_{model_id}/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+                f'{phase}_{model_id}/{k}', make_grid(image_tensors[k].cpu(), nrow=2, normalize=True))
 
     def _save_checkpoint(self, epoch, model_id, keep_latest_k=-1, save_latest=True):
         """

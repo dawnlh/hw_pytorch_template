@@ -150,7 +150,7 @@ class BaseTrainer(metaclass=ABCMeta):
         # TBD
         # hook after iter
         self.writer.set_step(
-            (epoch - 1) * getattr(self, f'limit_{phase}_batches') + batch_idx, speed_chk=f'{phase}')
+            (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}')
 
         loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
@@ -160,7 +160,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
         for k, v in image_tensors.items():
             self.writer.add_image(
-                f'{phase}/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+                f'{phase}/{k}', make_grid(image_tensors[k].cpu(), nrow=2, normalize=True))
 
     def _after_epoch(self, ep, result, time_cost):
         # TBD

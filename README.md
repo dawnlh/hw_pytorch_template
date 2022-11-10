@@ -133,7 +133,7 @@ num_workers: 8
 trainer:
   epochs: 2
   limit_train_iters: null
-  limit_val_iters: null
+  limit_valid_iters: null
   monitor: min loss/valid
   saving_top_k: 7
   early_stop: 10

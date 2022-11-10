@@ -57,7 +57,7 @@ class Trainer(BaseTrainer2):
 
     def _after_iter(self, epoch, batch_idx, phase, model_id, loss, iter_metrics, image_tensors: dict):
         self.writer.set_step(
-            (epoch - 1) * getattr(self, f'limit_{phase}_batches') + batch_idx, speed_chk=f'{phase}_{model_id}')
+            (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}_{model_id}')
 
         loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
         getattr(self, f'{phase}_metrics_{model_id}').update('loss', loss_v)
@@ -67,7 +67,7 @@ class Trainer(BaseTrainer2):
 
         for k, v in image_tensors.items():
             self.writer.add_image(
-                f'{phase}_{model_id}/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+                f'{phase}_{model_id}/{k}', make_grid(image_tensors[k].cpu(), nrow=2, normalize=True))
 
     def _calc_loss_a(self, kernel_est, kernel, blur, sharp):
         loss = 0
@@ -146,8 +146,8 @@ class Trainer(BaseTrainer2):
                     metric_v = met(kernel_est, kernel)
                     iter_metrics.update({met.__name__: metric_v})
 
-                image_tensors = {'input': data,
-                                 'kernel': kernel, 'kernel_est': kernel_est}
+                image_tensors = {'input': data[0:8, ...],
+                                 'kernel': kernel[0:8, ...], 'kernel_est': kernel_est[0:8, ...]}
                 self._after_iter(epoch, batch_idx, 'train', 'a',
                                  loss, iter_metrics, image_tensors)
 
@@ -215,12 +215,12 @@ class Trainer(BaseTrainer2):
                 for met in self.metric_ftns_a:
                     metric_v = met(kernel_est, kernel)
                     iter_metrics.update({met.__name__: metric_v})
-                image_tensors = {'input': data,
-                                 'kernel': kernel, 'kernel_est': kernel_est}
+                image_tensors = {'input': data[0:8, ...],
+                                 'kernel': kernel[0:8, ...], 'kernel_est': kernel_est[0:8, ...]}
                 self._after_iter(epoch, batch_idx, 'valid', 'a',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_val_iters:
+                if batch_idx == self.limit_valid_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -273,8 +273,8 @@ class Trainer(BaseTrainer2):
                     metric_v = met(output, target)
                     iter_metrics.update({met.__name__: metric_v})
 
-                image_tensors = {'input': data, 'kernel_gt': kernel, 'kernel_use': kernel_,
-                                 'target': target, 'output': output}
+                image_tensors = {'input': data[0:8, ...], 'kernel_gt': kernel[0:8, ...], 'kernel_use': kernel_[0:8, ...],
+                                 'target': target[0:8, ...], 'output': output[0:8, ...]}
                 self._after_iter(epoch, batch_idx, 'train', 'b',
                                  loss, iter_metrics, image_tensors)
                 self.logger.info(
@@ -336,12 +336,12 @@ class Trainer(BaseTrainer2):
                 for met in self.metric_ftns_b:
                     metric_v = met(output, target)
                     iter_metrics.update({met.__name__: metric_v})
-                image_tensors = {'input': data, 'kernel_gt': kernel,
-                                 'kernel_use': kernel_, 'target': target, 'output': output}
+                image_tensors = {'input': data[0:8, ...], 'kernel_gt': kernel[0:8, ...],
+                                 'kernel_use': kernel_[0:8, ...], 'target': target[0:8, ...], 'output': output[0:8, ...]}
                 self._after_iter(epoch, batch_idx, 'valid', 'b',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_val_iters:
+                if batch_idx == self.limit_valid_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -418,8 +418,8 @@ class Trainer(BaseTrainer2):
                     metric_v = met(output, target)
                     iter_metrics.update({met.__name__: metric_v})
 
-                image_tensors = {'input': data, 'kernel': kernel,
-                                 'target': target, 'output': output}
+                image_tensors = {'input': data[0:8, ...], 'kernel': kernel[0:8, ...],
+                                 'target': target[0:8, ...], 'output': output[0:8, ...]}
                 self._after_iter(epoch_b, batch_idx, 'train', 'b',
                                  loss_b, iter_metrics, image_tensors)
                 self.logger.info(
@@ -493,8 +493,8 @@ class Trainer(BaseTrainer2):
                 for met in self.metric_ftns_a:
                     metric_v = met(kernel_est, kernel)
                     iter_metrics.update({met.__name__: metric_v})
-                image_tensors = {'input': data,
-                                 'kernel': kernel, 'kernel_est': kernel_est}
+                image_tensors = {'input': data[0:8, ...],
+                                 'kernel': kernel[0:8, ...], 'kernel_est': kernel_est[0:8, ...]}
                 self._after_iter(epoch_a, batch_idx, 'valid', 'a',
                                  loss, iter_metrics, image_tensors)
 
@@ -503,12 +503,12 @@ class Trainer(BaseTrainer2):
                 for met in self.metric_ftns_b:
                     metric_v = met(output, target)
                     iter_metrics.update({met.__name__: metric_v})
-                image_tensors = {'input': data, 'kernel': kernel,
-                                 'target': target, 'output': output}
+                image_tensors = {'input': data[0:8, ...], 'kernel': kernel[0:8, ...],
+                                 'target': target[0:8, ...], 'output': output[0:8, ...]}
                 self._after_iter(epoch_b, batch_idx, 'valid', 'b',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_val_iters:
+                if batch_idx == self.limit_valid_iters:
                     break
 
         # add histogram of model parameters to the tensorboard

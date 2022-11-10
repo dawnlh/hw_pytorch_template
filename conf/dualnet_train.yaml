@@ -26,7 +26,7 @@ trainer:
   # workflow: [{mode: alter, n: 1, op: [[a, 400]]}]
   init_epochs: {a: 0, b: 0} # initlization epoch
   limit_train_iters:    # maximal trainning batches: empty for all
-  limit_val_iters:      # maximal validation batches: empty for all
+  limit_valid_iters:      # maximal validation batches: empty for all
   saving_latest_k: 5      # save top k checkpoints (best checkpoints saved separately)
   logging_step: 400       # one log / $logging_step iteration
   tensorboard: true       # use tensorboard for training log
