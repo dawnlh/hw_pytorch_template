@@ -35,7 +35,9 @@ class BaseTrainer(metaclass=ABCMeta):
         self.optimizer = optimizer
 
         cfg_trainer = config['trainer']
-        self.epochs = cfg_trainer['epochs']
+        self.epochs = cfg_trainer.get('epochs', int(1e10))
+        if self.epochs is None:
+            self.epochs = int(1e10)
         self.logging_step = cfg_trainer.get('logging_step', 100)
 
         # setup metric monitoring for monitoring model performance and saving best-checkpoint
@@ -47,6 +49,8 @@ class BaseTrainer(metaclass=ABCMeta):
 
         self.saving_top_k = cfg_trainer.get('saving_top_k', -1)
         self.early_stop = cfg_trainer.get('early_stop', inf)
+        if self.early_stop is None:
+            self.early_stop = inf
         self.final_test = cfg_trainer.get('final_test', False)
 
         write_conf(self.config, 'config.yaml')

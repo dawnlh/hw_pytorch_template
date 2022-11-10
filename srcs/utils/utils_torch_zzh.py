@@ -46,15 +46,15 @@ def pad2same_size(x1, x2):
                                     diffY // 2, diffY - diffY//2))
     elif diffX < 0 and diffY < 0:
         x2 = nn.functional.pad(
-            x2, (-diffX // 2, -diffX + diffX//2, -diffY // 2, -diffY + diffY//2))
+            x2, (-diffX // 2, -diffX - (-diffX)//2, -diffY // 2, -diffY - (-diffY)//2))
     elif diffX >= 0 and diffY < 0:
         x1 = nn.functional.pad(x1, (diffX // 2, diffX - diffX//2, 0, 0))
         x2 = nn.functional.pad(
-            x2, (0, 0, -diffY // 2, -diffY + diffY//2))
+            x2, (0, 0, -diffY // 2, -diffY - (-diffY)//2))
     elif diffX < 0 and diffY >= 0:
         x1 = nn.functional.pad(x1, (0, 0, diffY // 2, diffY - diffY//2))
         x2 = nn.functional.pad(
-            x2, (-diffX // 2, -diffX + diffX//2, 0, 0))
+            x2, (-diffX // 2, -diffX - (-diffX)//2, 0, 0))
 
     return x1, x2
 

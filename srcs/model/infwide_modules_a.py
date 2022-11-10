@@ -7,7 +7,7 @@ from srcs.utils.utils_deblur_dwdn import get_uperleft_denominator as wiener_debl
 
 
 # ======
-# ref: 
+# ref:
 #   https://gitlab.mpi-klsb.mpg.de/jdong/dwdn
 #   https://github.com/cszn/KAIR
 # ======
@@ -19,7 +19,7 @@ from srcs.utils.utils_deblur_dwdn import get_uperleft_denominator as wiener_debl
 
 def pad2same_size(x1, x2):
     '''
-    pad x1 or x2 to the same size (the size of the larger one)
+    pad x1 or x2 to the same size (to the size of the larger one)
     '''
     diffX = x2.size()[3] - x1.size()[3]
     diffY = x2.size()[2] - x1.size()[2]
@@ -32,15 +32,15 @@ def pad2same_size(x1, x2):
                                     diffY // 2, diffY - diffY//2))
     elif diffX < 0 and diffY < 0:
         x2 = nn.functional.pad(
-            x2, (-diffX // 2, -diffX + diffX//2, -diffY // 2, -diffY + diffY//2))
+            x2, (-diffX // 2, -diffX - (-diffX)//2, -diffY // 2, -diffY - (-diffY)//2))
     elif diffX >= 0 and diffY < 0:
         x1 = nn.functional.pad(x1, (diffX // 2, diffX - diffX//2, 0, 0))
         x2 = nn.functional.pad(
-            x2, (0, 0, -diffY // 2, -diffY + diffY//2))
+            x2, (0, 0, -diffY // 2, -diffY - (-diffY)//2))
     elif diffX < 0 and diffY >= 0:
         x1 = nn.functional.pad(x1, (0, 0, diffY // 2, diffY - diffY//2))
         x2 = nn.functional.pad(
-            x2, (-diffX // 2, -diffX + diffX//2, 0, 0))
+            x2, (-diffX // 2, -diffX - (-diffX)//2, 0, 0))
 
     return x1, x2
 
