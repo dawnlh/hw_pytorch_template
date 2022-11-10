@@ -97,14 +97,14 @@ class BaseTrainer2(metaclass=ABCMeta):
         self.data_loader = data_loader
         self.valid_data_loader = valid_data_loader
 
-        self.limit_train_batches = config['trainer'].get(
-            'limit_train_batches', len(self.data_loader))
-        if not self.limit_train_batches or self.limit_train_batches > len(self.data_loader):
-            self.limit_train_batches = len(self.data_loader)
-        self.limit_valid_batches = config['trainer'].get(
-            'limit_valid_batches', len(self.valid_data_loader))
-        if not self.limit_valid_batches or self.limit_valid_batches > len(self.valid_data_loader):
-            self.limit_valid_batches = len(self.valid_data_loader)
+        self.limit_train_iters = config['trainer'].get(
+            'limit_train_iters', len(self.data_loader))
+        if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
+            self.limit_train_iters = len(self.data_loader)
+        self.limit_val_iters = config['trainer'].get(
+            'limit_val_iters', len(self.valid_data_loader))
+        if not self.limit_val_iters or self.limit_val_iters > len(self.valid_data_loader):
+            self.limit_val_iters = len(self.valid_data_loader)
 
     def train(self):
         """
@@ -319,13 +319,13 @@ class BaseTrainer2(metaclass=ABCMeta):
         try:
             # epoch-based training
             # total = len(self.data_loader.dataset)
-            total = self.data_loader.batch_size * self.limit_train_batches
+            total = self.data_loader.batch_size * self.limit_train_iters
             current = batch_idx * self.data_loader.batch_size
             if dist.is_initialized():
                 current *= dist.get_world_size()
         except AttributeError:
             # iteration-based training
-            total = self.limit_train_batches
+            total = self.limit_train_iters
             current = batch_idx
         return base.format(current, total, 100.0 * current / total)
 

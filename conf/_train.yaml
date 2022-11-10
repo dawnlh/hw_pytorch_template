@@ -22,8 +22,8 @@ num_workers: 8              # number of cpu workers
 trainer_name: _my_trainer  # trainer code name
 trainer:                    # trainer setting
   epochs: 400               # total training epochs
-  limit_train_batches:      # total used batches in one training epoch: empty for all
-  limit_val_batches:        # total used batches in one validation: empty for all
+  limit_train_iters:      # total used batches in one training epoch: empty for all
+  limit_val_iters:        # total used batches in one validation: empty for all
   monitor: min loss/valid   # monitor for early stop: max calc_psnr/valid | min loss/valid
   saving_top_k: 5           # save top k checkpoints (best checkpoints saved separately)
   early_stop: 100           # stop if no improvement in consecutive $early_stop epochs, 10

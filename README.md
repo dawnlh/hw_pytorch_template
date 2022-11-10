@@ -132,8 +132,8 @@ gpus:
 num_workers: 8
 trainer:
   epochs: 2
-  limit_train_batches: null
-  limit_val_batches: null
+  limit_train_iters: null
+  limit_val_iters: null
   monitor: min loss/valid
   saving_top_k: 7
   early_stop: 10
@@ -258,7 +258,7 @@ Please refer to `data_loader/data_loaders.py` for an MNIST data loading example.
 
 * **Iteration-based training**
 
-  `Trainer.__init__` takes an optional argument, `limit_train_batches` which controls number of batches(steps) in each epoch.
+  `Trainer.__init__` takes an optional argument, `limit_train_iters` which controls number of batches(steps) in each epoch.
 
 ### Model
 * **Writing your own model**

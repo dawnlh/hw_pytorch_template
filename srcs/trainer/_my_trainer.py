@@ -37,14 +37,14 @@ class Trainer(BaseTrainer):
         self.input_denoise_epoch = input_denoise_epoch
         self.losses = self.config['loss']
         self.lr_scheduler = lr_scheduler
-        self.limit_train_batches = config['trainer'].get(
-            'limit_train_batches', len(self.data_loader))
-        if not self.limit_train_batches or self.limit_train_batches > len(self.data_loader):
-            self.limit_train_batches = len(self.data_loader)
-        self.limit_val_batches = config['trainer'].get(
-            'limit_val_batches', len(self.valid_data_loader))
-        if not self.limit_val_batches or self.limit_val_batches > len(self.valid_data_loader):
-            self.limit_val_batches = len(self.valid_data_loader)
+        self.limit_train_iters = config['trainer'].get(
+            'limit_train_iters', len(self.data_loader))
+        if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
+            self.limit_train_iters = len(self.data_loader)
+        self.limit_val_iters = config['trainer'].get(
+            'limit_val_iters', len(self.valid_data_loader))
+        if not self.limit_val_iters or self.limit_val_iters > len(self.valid_data_loader):
+            self.limit_val_iters = len(self.valid_data_loader)
         args = ['loss', *[m.__name__ for m in self.metric_ftns]]
         self.train_metrics = BatchMetrics(
             *args, postfix='/train', writer=self.writer)
@@ -129,10 +129,10 @@ class Trainer(BaseTrainer):
 
             loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
             self.writer.set_step(
-                (epoch - 1) * self.limit_train_batches + batch_idx, speed_chk='train')
+                (epoch - 1) * self.limit_train_iters + batch_idx, speed_chk='train')
             self.train_metrics.update('loss', loss_v)
 
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_batches:
+            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
                 # save image
                 self.writer.add_image(
                     'train/_input', make_grid(data_noisy[0:8, ...].cpu(), nrow=2, normalize=True))
@@ -155,7 +155,7 @@ class Trainer(BaseTrainer):
                 self.logger.info(
                     f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_batches:
+            if batch_idx == self.limit_train_iters:
                 break
 
         log = self.train_metrics.result()
@@ -219,7 +219,7 @@ class Trainer(BaseTrainer):
                     self.valid_metrics.update(
                         met.__name__, met(output[1], target))
 
-                if batch_idx == self.limit_val_batches:
+                if batch_idx == self.limit_val_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -279,13 +279,13 @@ class Trainer(BaseTrainer):
         try:
             # epoch-based training
             # total = len(self.data_loader.dataset)
-            total = self.data_loader.batch_size * self.limit_train_batches
+            total = self.data_loader.batch_size * self.limit_train_iters
             current = batch_idx * self.data_loader.batch_size
             if dist.is_initialized():
                 current *= dist.get_world_size()
         except AttributeError:
             # iteration-based training
-            total = self.limit_train_batches
+            total = self.limit_train_iters
             current = batch_idx
         return base.format(current, total, 100.0 * current / total)
 
@@ -420,14 +420,14 @@ class Trainer(BaseTrainer):
                 self.final_test = False
         self.input_denoise_epoch = input_denoise_epoch
         self.lr_scheduler = lr_scheduler
-        self.limit_train_batches = config['trainer'].get(
-            'limit_train_batches', len(self.data_loader))
-        if not self.limit_train_batches or self.limit_train_batches > len(self.data_loader):
-            self.limit_train_batches = len(self.data_loader)
-        self.limit_val_batches = config['trainer'].get(
-            'limit_val_batches', len(self.valid_data_loader))
-        if not self.limit_val_batches or self.limit_val_batches > len(self.valid_data_loader):
-            self.limit_val_batches = len(self.valid_data_loader)
+        self.limit_train_iters = config['trainer'].get(
+            'limit_train_iters', len(self.data_loader))
+        if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
+            self.limit_train_iters = len(self.data_loader)
+        self.limit_val_iters = config['trainer'].get(
+            'limit_val_iters', len(self.valid_data_loader))
+        if not self.limit_val_iters or self.limit_val_iters > len(self.valid_data_loader):
+            self.limit_val_iters = len(self.valid_data_loader)
         args = ['loss', *[m.__name__ for m in self.metric_ftns]]
         self.train_metrics = BatchMetrics(
             *args, postfix='/train', writer=self.writer)
@@ -511,10 +511,10 @@ class Trainer(BaseTrainer):
 
             loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
             self.writer.set_step(
-                (epoch - 1) * self.limit_train_batches + batch_idx, speed_chk='train')
+                (epoch - 1) * self.limit_train_iters + batch_idx, speed_chk='train')
             self.train_metrics.update('loss', loss_v)
 
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_batches:
+            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
                 # save image
                 self.writer.add_image(
                     'train/_input', make_grid(data_noisy[0:8, ...].cpu(), nrow=2, normalize=True))
@@ -537,7 +537,7 @@ class Trainer(BaseTrainer):
                 self.logger.info(
                     f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_batches:
+            if batch_idx == self.limit_train_iters:
                 break
 
         log = self.train_metrics.result()
@@ -601,7 +601,7 @@ class Trainer(BaseTrainer):
                     self.valid_metrics.update(
                         met.__name__, met(output[1], target))
 
-                if batch_idx == self.limit_val_batches:
+                if batch_idx == self.limit_val_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -661,13 +661,13 @@ class Trainer(BaseTrainer):
         try:
             # epoch-based training
             # total = len(self.data_loader.dataset)
-            total = self.data_loader.batch_size * self.limit_train_batches
+            total = self.data_loader.batch_size * self.limit_train_iters
             current = batch_idx * self.data_loader.batch_size
             if dist.is_initialized():
                 current *= dist.get_world_size()
         except AttributeError:
             # iteration-based training
-            total = self.limit_train_batches
+            total = self.limit_train_iters
             current = batch_idx
         return base.format(current, total, 100.0 * current / total)
 

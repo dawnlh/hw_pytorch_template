@@ -140,7 +140,7 @@ class Trainer(BaseTrainer2):
             self.optimizer_a.step()
 
             # iter log
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_batches:
+            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
                 iter_metrics = {}
                 for met in self.metric_ftns_a:
                     metric_v = met(kernel_est, kernel)
@@ -154,7 +154,7 @@ class Trainer(BaseTrainer2):
                 self.logger.info(
                     f'Train Epoch (Net_a): {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer_a.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_batches:
+            if batch_idx == self.limit_train_iters:
                 break
 
         # epoch log
@@ -220,7 +220,7 @@ class Trainer(BaseTrainer2):
                 self._after_iter(epoch, batch_idx, 'valid', 'a',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_valid_batches:
+                if batch_idx == self.limit_val_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -267,7 +267,7 @@ class Trainer(BaseTrainer2):
             self.optimizer_b.step()
 
             # iter log
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_batches:
+            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
                 iter_metrics = {}
                 for met in self.metric_ftns_b:
                     metric_v = met(output, target)
@@ -280,7 +280,7 @@ class Trainer(BaseTrainer2):
                 self.logger.info(
                     f'Train Epoch (Net_b): {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer_b.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_batches:
+            if batch_idx == self.limit_train_iters:
                 break
 
         # epoch log
@@ -341,7 +341,7 @@ class Trainer(BaseTrainer2):
                 self._after_iter(epoch, batch_idx, 'valid', 'b',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_valid_batches:
+                if batch_idx == self.limit_val_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
@@ -394,7 +394,7 @@ class Trainer(BaseTrainer2):
             self.optimizer_b.step()
 
             # iter log
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_batches:
+            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
                 # e2e
                 self.logger.info(
                     f"Train Epoch (E2E): {kwargs['n_idx']+1}/{kwargs['n']} {self._progress(batch_idx)} Total Loss: {loss:.6f} ")
@@ -425,7 +425,7 @@ class Trainer(BaseTrainer2):
                 self.logger.info(
                     f'---> Net_b: Epoch: {epoch_b:03d} Loss: {loss_b:.6f} Lr: {self.optimizer_b.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_batches:
+            if batch_idx == self.limit_train_iters:
                 break
 
         # epoch log
@@ -508,7 +508,7 @@ class Trainer(BaseTrainer2):
                 self._after_iter(epoch_b, batch_idx, 'valid', 'b',
                                  loss, iter_metrics, image_tensors)
 
-                if batch_idx == self.limit_valid_batches:
+                if batch_idx == self.limit_val_iters:
                     break
 
         # add histogram of model parameters to the tensorboard
