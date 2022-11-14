@@ -1,27 +1,27 @@
 '''
-Info: patch processing based on pytorch
-Modified: Zhihong Zhang <z_zhi_hong@163.com>
-Created: 2022-09-21 18:07:07
------
-example
-
-    input_re, batch_list = window_partitionx(input_data, win_size)
-    restored = model_restoration(input_re)
-    restored = window_reversex(restored, win, Hx, Wx, batch_list)
-
------
-Copyright https://github.com/INVOKERer/DeepRFT
-
+pytorch version 2D patches extraction and combination (without overlapping) based on basic torch operations
 '''
-
 
 import torch
 
 
+# ==================================================
+# patch processing based on pytorch (without overlap)
+# -----
+# example
+
+#     input_re, batch_list = window_partitionx(input_data, win_size)
+#     restored = model_restoration(input_re)
+#     restored = window_reversex(restored, win, Hx, Wx, batch_list)
+
+# -----
+# Copyright https://github.com/INVOKERer/DeepRFT
+# ==================================================
+
 def window_partitions(x, window_size):
     """
     split a full image into multi-patch (discard aliquant edge patch)
-    
+
     Args:
         x: (B, C, H, W)
         window_size (int): window size
@@ -37,42 +37,17 @@ def window_partitions(x, window_size):
     return windows
 
 
-def window_reverses(windows, window_size, H, W):
-    """
-    reverse multi-patch back to a full image (discard aliquant edge patch)
-    
-    Args:
-        windows: (num_windows*B, C, window_size, window_size)
-        window_size (int): Window size
-        H (int): Height of image
-        W (int): Width of image
-
-    Returns:
-        x: (B, C, H, W)
-    """
-    # B = int(windows.shape[0] / (H * W / window_size / window_size))
-    # print('B: ', B)
-    # print(H // window_size)
-    # print(W // window_size)
-    C = windows.shape[1]
-    # print('C: ', C)
-    x = windows.view(-1, H // window_size, W // window_size,
-                     C, window_size, window_size)
-    x = x.permute(0, 3, 1, 4, 2, 5).contiguous().view(-1, C, H, W)
-    return x
-
-
 def window_partitionx(x, window_size, keep_edge=True):
     """
-    split a full image into multi-patch (compensate for aliquant edge patch)
-    
+    split a full image into multi-patch (could compensate for aliquant edge patch with keep_edge=True)
+
     Args:
         x: (B, C, H, W)
         window_size (int): window size
         keep_edge (bool): whether keep the aliquant edges, default=True
 
     Returns:
-        windows: (num_windows*B, C, window_size, window_size), 
+        windows: (num_windows*B, C, window_size, window_size),
         batch_list: cumulative patch num list for aliquot & aliquant patches
     """
     _, _, H, W = x.shape
@@ -102,11 +77,33 @@ def window_partitionx(x, window_size, keep_edge=True):
     else:
         return x_main, [b_main]
 
+# -------------------------------------------------------------------------
+
+
+def window_reverses(windows, window_size, H, W):
+    """
+    reverse multi-patch back to a full image (discard aliquant edge patch)
+
+    Args:
+        windows: (num_windows*B, C, window_size, window_size)
+        window_size (int): Window size
+        H (int): Height of image
+        W (int): Width of image
+
+    Returns:
+        x: (B, C, H, W)
+    """
+    C = windows.shape[1]
+    x = windows.view(-1, H // window_size, W // window_size,
+                     C, window_size, window_size)
+    x = x.permute(0, 3, 1, 4, 2, 5).contiguous().view(-1, C, H, W)
+    return x
+
 
 def window_reversex(windows, window_size, H, W, batch_list, keep_edge=True):
     """
     reverse multi-patch back to a full image (compensate for aliquant edge patch)
-    
+
     Args:
         windows: (num_windows*B, C, window_size, window_size)
         window_size (int): Window size

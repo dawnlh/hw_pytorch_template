@@ -50,10 +50,8 @@ def gpu_inference_time_est(model, inputs_shape, logger=None, device=None, repeti
         _ = model(*dummy_input)
 
     # MEASURE PERFORMANCE
-    print(
-        f"===> Start Inference Time Estimation (inputs_shape={inputs_shape})")
     with torch.no_grad():
-        for rep in tqdm(range(repetitions)):
+        for rep in tqdm(range(repetitions), desc='Inference Time Est:'):
             starter.record()
             _ = model(*dummy_input)
             ender.record()
@@ -67,10 +65,10 @@ def gpu_inference_time_est(model, inputs_shape, logger=None, device=None, repeti
     std_time = np.std(timings)
     if logger is not None:
         logger.info(
-            '='*20+f'\nInference Time Estimation: \nInputs Shape\t{inputs_shape} \nEstimated Time\t{mean_time:.3f}ms \nEstimated Std\t{std_time:.3f}ms\n'+'='*20)
+            '='*20+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*20)
     else:
         print(
-            '='*20+f'\nInference Time Estimation: \nInputs Shape\t{inputs_shape} \nEstimated Time\t{mean_time:.3f}ms \nEstimated Std\t{std_time:.3f}ms\n'+'='*20)
+            '='*20+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*20)
 
 
 if __name__ == '__main__':

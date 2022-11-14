@@ -10,6 +10,7 @@ from tqdm import tqdm
 from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 from srcs.utils.utils_eval_zzh import gpu_inference_time_est
+from ptflops import get_model_complexity_info
 
 def testing(gpus, config):
     test_worker(gpus, config)
@@ -37,6 +38,19 @@ def test_worker(gpus, config):
     # model = instantiate(loaded_config.arch)
     model = instantiate(config.arch)
     logger.info(model)
+
+    # calc MACs & Param. Num
+    inputs_shape = [256, 256]
+    macs, params = get_model_complexity_info(
+        model=model, input_res=(3, *inputs_shape), verbose=False, print_per_layer_stat=False)
+    logger.info(
+        '='*40+'\n{:<30} {}'.format('Inputs resolution: ', inputs_shape))
+    logger.info(
+        '{:<30} {}'.format('Computational complexity: ', macs))
+    logger.info('{:<30}  {}\n'.format(
+        'Number of parameters: ', params)+'='*40)
+
+    # DP
     if len(gpus) > 1:
         model = torch.nn.DataParallel(model, device_ids=gpus)
 

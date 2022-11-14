@@ -82,49 +82,6 @@ def pad4conv(tensor, psf_sz, mode='circular', value=0.0):
     tensor = F.pad(tensor, pad_width, mode=mode, value=value)
     return tensor
 
-# --------------------------------------------
-# patching
-# --------------------------------------------
-
-
-def to_patch(x, patch_size):
-    """
-    split a full image into multi-patch
-
-    Args:
-        x: tensor (B, C, H, W)
-        patch_size (int): patch
-
-    Returns:
-        patches: (num_patches*B, C, patch_size, patch_size)
-    """
-    B, C, H, W = x.shape
-    x = x.view(B, C, H // patch_size, patch_size,
-               W // patch_size, patch_size)
-    patches = x.permute(0, 2, 4, 1, 3, 5).contiguous(
-    ).view(-1, C, patch_size, patch_size)
-    return patches
-
-
-def to_full(patches, patch_size, H, W):
-    """
-    reverse multi-patch back to a full image
-
-    Args:
-        patches: (num_patches*B, C, patch_size, patch_size)
-        patch_size (int): patch size
-        H (int): Height of image
-        W (int): Width of image
-
-    Returns:
-        x: (B, C, H, W)
-    """
-    C = patches.shape[1]
-    x = patches.view(-1, H // patch_size, W // patch_size,
-                     C, patch_size, patch_size)
-    x = x.permute(0, 3, 1, 4, 2, 5).contiguous().view(-1, C, H, W)
-    return x
-
 
 # --------------------------------------------
 # real convolution implemented with pytorch
