@@ -94,8 +94,11 @@ class Deconv(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, conv, n_feat, kernel_size, padding=0, bias=True, bn=False, act=nn.ReLU(True), res_scale=1):
+    def __init__(self, conv, n_feat, kernel_size, padding=0, bias=True, bn=False, act='relu', res_scale=1):
         super(ResBlock, self).__init__()
+        if act == 'relu':
+            act = nn.ReLU(inplace=True)
+
         m = []
         for i in range(2):
             m.append(conv(n_feat, n_feat, kernel_size,
