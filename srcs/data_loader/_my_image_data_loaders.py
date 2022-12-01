@@ -30,7 +30,7 @@ class ImageDataset(Dataset):
     Image dataset that loads images to CPU once per batch
     """
 
-    def __init__(self, img_dir, patch_size=256, tform_op=None, sigma_range=0):
+    def __init__(self, data_dir, patch_size=None, tform_op=None, sigma_range=0):
         super(ImageDataset, self).__init__()
         self.patch_size = [patch_size] * \
             2 if isinstance(patch_size, int) else patch_size
@@ -42,22 +42,22 @@ class ImageDataset(Dataset):
 
         # get image paths and load images
         img_paths = []
-        if isinstance(img_dir, str):
+        if isinstance(data_dir, str):
             # single dataset
-            img_names = sorted(os.listdir(img_dir))
-            img_paths = [opj(img_dir, img_name) for img_name in img_names]
+            img_names = sorted(os.listdir(data_dir))
+            img_paths = [opj(data_dir, img_name) for img_name in img_names]
         else:
             # multiple dataset
-            for img_dir_n in sorted(img_dir):
-                img_names_n = sorted(os.listdir(img_dir_n))
-                img_paths_n = [opj(img_dir_n, img_name_n)
+            for data_dir_n in sorted(data_dir):
+                img_names_n = sorted(os.listdir(data_dir_n))
+                img_paths_n = [opj(data_dir_n, img_name_n)
                                for img_name_n in img_names_n]
                 img_paths.extend(img_paths_n)
         self.img_paths = img_paths
 
         # remove non-image path
         for img_path in self.img_paths:
-            if img_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
+            if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % (img_path))
                 self.img_paths.remove(img_path)
 
@@ -75,7 +75,7 @@ class ImageDataset(Dataset):
         # crop to patch size
         if self.patch_size:
             assert (img_sz[0] >= self.patch_size[0]) and (img_sz[1] >= self.patch_size[1]
-                                                        ), 'error patch_size(%d*%d) larger than image size(%d*%d)' % (*self.patch_size, *img_sz[0:2])
+                                                          ), 'error patch_size(%d*%d) larger than image size(%d*%d)' % (*self.patch_size, *img_sz[0:2])
             xmin = np.random.randint(0, img_sz[1]-self.patch_size[1])
             ymin = np.random.randint(0, img_sz[0]-self.patch_size[0])
             imgk = imgk[ymin:ymin+self.patch_size[0],
@@ -108,7 +108,7 @@ class ImageDataset_all2CPU(Dataset):
     Image dataset that loads entire dataset to CPU to speed the data load process (need larger CPU memory)
     """
 
-    def __init__(self, img_dir, patch_size=256, tform_op=None, sigma_range=0):
+    def __init__(self, data_dir, patch_size=None, tform_op=None, sigma_range=0):
         super(ImageDataset_all2CPU, self).__init__()
         self.patch_size = [patch_size] * \
             2 if isinstance(patch_size, int) else patch_size
@@ -120,22 +120,22 @@ class ImageDataset_all2CPU(Dataset):
 
         # get image paths and load images
         img_paths = []
-        if isinstance(img_dir, str):
+        if isinstance(data_dir, str):
             # single dataset
-            img_names = sorted(os.listdir(img_dir))
-            img_paths = [opj(img_dir, img_name) for img_name in img_names]
+            img_names = sorted(os.listdir(data_dir))
+            img_paths = [opj(data_dir, img_name) for img_name in img_names]
         else:
             # multiple dataset
-            for img_dir_n in sorted(img_dir):
-                img_names_n = sorted(os.listdir(img_dir_n))
-                img_paths_n = [opj(img_dir_n, img_name_n)
+            for data_dir_n in sorted(data_dir):
+                img_names_n = sorted(os.listdir(data_dir_n))
+                img_paths_n = [opj(data_dir_n, img_name_n)
                                for img_name_n in img_names_n]
                 img_paths.extend(img_paths_n)
         self.img_paths = img_paths
 
         for img_path in tqdm(self.img_paths, desc='Loading dataset to CPU'):
 
-            if img_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
+            if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % img_path)
                 continue
             img = cv2.imread(img_path)
@@ -154,7 +154,7 @@ class ImageDataset_all2CPU(Dataset):
         # crop to patch size
         if self.patch_size:
             assert (img_sz[0] >= self.patch_size[0]) and (img_sz[1] >= self.patch_size[1]
-                                                        ), 'error patch_size(%d*%d) larger than image size(%d*%d)' % (*self.patch_size, *img_sz[0:2])
+                                                          ), 'error patch_size(%d*%d) larger than image size(%d*%d)' % (*self.patch_size, *img_sz[0:2])
             xmin = np.random.randint(0, img_sz[1]-self.patch_size[1])
             ymin = np.random.randint(0, img_sz[0]-self.patch_size[0])
             imgk = imgk[ymin:ymin+self.patch_size[0],
@@ -193,17 +193,17 @@ class ImageDataset_realExp:
 # get dataloader
 # =================
 
-def get_data_loaders(img_dir, batch_size=8, tform_op=None, sigma_range=0, patch_size=256, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
+def get_data_loaders(data_dir, batch_size=8, tform_op=None, sigma_range=0, patch_size=None, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
     # dataset
     if status == 'train' or status == 'test' or status == 'debug':
         if all2CPU:
             dataset = ImageDataset_all2CPU(
-                img_dir, patch_size, tform_op, sigma_range)
+                data_dir, patch_size, tform_op, sigma_range)
         else:
-            dataset = ImageDataset(img_dir, patch_size, tform_op, sigma_range)
+            dataset = ImageDataset(data_dir, patch_size, tform_op, sigma_range)
     elif status == 'real_test':
         dataset = ImageDataset_realExp(
-            img_dir, patch_size, tform_op, sigma_range)
+            data_dir, patch_size, tform_op, sigma_range)
 
     loader_args = {
         'batch_size': batch_size,
@@ -241,23 +241,23 @@ def get_data_loaders(img_dir, batch_size=8, tform_op=None, sigma_range=0, patch_
 
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(__file__) + os.sep + '../')
-    from srcs.utils import utils_blurkernel_zzh
+    from utils import utils_deblur_zzh
     from utils import utils_deblur_kair
     from utils.utils_image_zzh import augment_img
 
-    # img_dir = '/ssd/2/zzh/dataset/Flickr2K_HR/'
-    # img_dir = '/ssd/2/zzh/dataset/BSDS500_images/val/'
-    img_dir = '/ssd/2/zzh/dataset/CBSD68/'
-    # img_dir = '/ssd/2/zzh/dataset/DIV2K_valid_HR/'
-    # img_dir = '/ssd/2/zzh/dataset/Waterloo_Exploration_Database/images/'
+    # data_dir = '/ssd/2/zzh/dataset/Flickr2K_HR/'
+    # data_dir = '/ssd/2/zzh/dataset/BSDS500_images/val/'
+    data_dir = '/ssd/2/zzh/dataset/CBSD68/'
+    # data_dir = '/ssd/2/zzh/dataset/DIV2K_valid_HR/'
+    # data_dir = '/ssd/2/zzh/dataset/Waterloo_Exploration_Database/images/'
 
     save_dir = './outputs/tmp/test/'
 
     # train_dataloader, val_dataloader = get_data_loaders(
-    #     img_dir,  tform_op=['all'], sigma_range=0.1, patch_size=256, batch_size=1, num_workers=8, all2CPU=False)
+    #     data_dir,  tform_op=['all'], sigma_range=0.1, patch_size=256, batch_size=1, num_workers=8, all2CPU=False)
 
     test_dataloader = get_data_loaders(
-        img_dir, patch_size=None, sigma_range=0, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test',)
+        data_dir, patch_size=None, sigma_range=0, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test',)
 
     iter_dataloader = test_dataloader
 
@@ -276,4 +276,4 @@ if __name__ == '__main__':
         if k % 1 == 0:
             print('k = ', k)
             cv2.imwrite(opj(save_dir, 'img%02d.png' %
-                        k), imgk, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+                            k), imgk, [cv2.IMWRITE_PNG_COMPRESSION, 0])

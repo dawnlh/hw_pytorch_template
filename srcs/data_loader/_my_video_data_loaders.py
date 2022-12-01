@@ -7,36 +7,50 @@ import os
 import numpy as np
 from tqdm import tqdm
 from os.path import join as opj
-
+# =================
+# loading multiple frames from a video
+# =================
 
 # =================
 # basic functions
 # =================
-def input_data_gen(frames, code):
+
+
+def input_data_gen(frames, ce_code, noise_level=0):
     """
     generate input data
 
     Args:
         frames (ndarray): high frame rate frames
-        code (ndarray): code sequence
+        ce_code (ndarray): exposure code sequence
+        noise_level: Gaussian noise sigma
     """
     frame_sz = frames.shape
-    _code = code[:, None, None, None]
-    _code = np.tile(_code, frame_sz[1:])
+    _ce_code = ce_code[:, None, None, None]
+    _ce_code = np.tile(_ce_code, frame_sz[1:])
     # print(code.shape)
-    coded_meas = np.sum(_code*frames, axis=0)/np.sum(code)
-    return coded_meas
+    coded_meas = np.sum(_ce_code*frames, axis=0)/len(ce_code)
+
+    # add Gaussian noise
+    coded_meas = coded_meas + \
+        np.random.normal(0, noise_level, coded_meas.shape)
+
+    return coded_meas.astype(np.float32)
 
 
-def init_network_input(coded_meas, code):
+def init_network_input(coded_blur_img, ce_code):
     """
     calculate the initial input of the network
 
+
     Args:
-        coded_meas (ndarray): coded measurement
-        code (ndarray): encoding code
+        coded_blur_img (ndarray): coded measurement
+        ce_code (ndarray): encoding code
     """
-    return coded_meas
+
+    # rescale the input to normal light condition
+    coded_blur_img_rescale = coded_blur_img*len(ce_code)/sum(ce_code)
+    return coded_blur_img_rescale
 
 
 def transform(vid, prob=0.5, tform_op=['all']):
@@ -71,36 +85,37 @@ def transform(vid, prob=0.5, tform_op=['all']):
 # =================
 # Video Dataset
 # =================
-# TODO
-# - skip_n or interval_n options for frame extraction from a video
+
 
 class VideoFrame_Dataset(Dataset):
     """
     datasetfor training or test (with ground truth)
     """
 
-    def __init__(self, vid_dir, ce_code, patch_sz, tform_op=None):
+    def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
         super(VideoFrame_Dataset, self).__init__()
         self.ce_code = np.array(ce_code, dtype=np.float32)
+        self.sigma_range = sigma_range
         self.patch_sz = [patch_sz] * \
             2 if isinstance(patch_sz, int) == 1 else patch_sz
         self.tform_op = tform_op
         self.vid_length = len(ce_code)
         self.img_paths = []
         self.vid_idx = []
+        self.stride = stride  # stride of the starting frame
 
         # get image paths
         img_nums = []
         vid_paths = []
-        if isinstance(vid_dir, str):
+        if isinstance(data_dir, str):
             # single dataset
-            vid_names = sorted(os.listdir(vid_dir))
-            vid_paths = [opj(vid_dir, vid_name) for vid_name in vid_names]
+            vid_names = sorted(os.listdir(data_dir))
+            vid_paths = [opj(data_dir, vid_name) for vid_name in vid_names]
         else:
             # multiple dataset
-            for vid_dir_n in sorted(vid_dir):
-                vid_names_n = sorted(os.listdir(vid_dir_n))
-                vid_paths_n = [opj(vid_dir_n, vid_name_n)
+            for data_dir_n in sorted(data_dir):
+                vid_names_n = sorted(os.listdir(data_dir_n))
+                vid_paths_n = [opj(data_dir_n, vid_name_n)
                                for vid_name_n in vid_names_n]
                 vid_paths.extend(vid_paths_n)
 
@@ -113,7 +128,7 @@ class VideoFrame_Dataset(Dataset):
         counter = 0
         for img_num in img_nums:
             self.vid_idx.extend(
-                list(range(counter, counter+img_num-self.vid_length+1)))
+                list(range(counter, counter+img_num-self.vid_length+1, stride)))
             counter = counter+img_num
 
     def __getitem__(self, idx):
@@ -144,18 +159,19 @@ class VideoFrame_Dataset(Dataset):
         if self.tform_op:
             vid = transform(vid, tform_op=self.tform_op)
 
-        # calc coded measurement
-        coded_meas = input_data_gen(vid, self.ce_code)
+        # noise level
+        if isinstance(self.sigma_range, (int, float)):
+            noise_level = self.sigma_range
+        else:
+            noise_level = np.random.uniform(*self.sigma_range)
 
-        # TODO: add noise
+        # calc coded measurement
+        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
 
         # calc middle video frame
         sharp_img = vid[self.ce_code.shape[0]//2, ...]
 
-        # calc init network input(prompt)
-        init_input = init_network_input(coded_meas, self.ce_code)
-
-        return init_input.transpose(2, 0, 1), sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -166,9 +182,10 @@ class VideoFrame_Dataset_all2CPU(Dataset):
     Dataset for training or test (with ground truth), load entire dataset to CPU to speed the data load process
     """
 
-    def __init__(self, vid_dir, ce_code, patch_sz, tform_op=None):
+    def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
         super(VideoFrame_Dataset_all2CPU, self).__init__()
         self.ce_code = np.array(ce_code, dtype=np.float32)
+        self.sigma_range = sigma_range
         self.patch_sz = [patch_sz] * \
             2 if isinstance(patch_sz, int) == 1 else patch_sz
         self.tform_op = tform_op
@@ -176,19 +193,20 @@ class VideoFrame_Dataset_all2CPU(Dataset):
         self.img_paths = []
         self.vid_idx = []  # start frame index of each video
         self.imgs = []
+        self.stride = stride  # stride of the starting frame
 
         # get image paths and load images
         img_nums = []
         vid_paths = []
-        if isinstance(vid_dir, str):
+        if isinstance(data_dir, str):
             # single dataset
-            vid_names = sorted(os.listdir(vid_dir))
-            vid_paths = [opj(vid_dir, vid_name) for vid_name in vid_names]
+            vid_names = sorted(os.listdir(data_dir))
+            vid_paths = [opj(data_dir, vid_name) for vid_name in vid_names]
         else:
             # multiple dataset
-            for vid_dir_n in sorted(vid_dir):
-                vid_names_n = sorted(os.listdir(vid_dir_n))
-                vid_paths_n = [opj(vid_dir_n, vid_name_n)
+            for data_dir_n in sorted(data_dir):
+                vid_names_n = sorted(os.listdir(data_dir_n))
+                vid_paths_n = [opj(data_dir_n, vid_name_n)
                                for vid_name_n in vid_names_n]
                 vid_paths.extend(vid_paths_n)
 
@@ -206,13 +224,13 @@ class VideoFrame_Dataset_all2CPU(Dataset):
             self.imgs.append(img)
             # assert (
             #     img_shape is None) or img.shape == img_shape, 'Please make sure the images in the datasets have the same size'
-            img_shape = img.shape
+            # img_shape = img.shape
         # self.imgs = np.array(self.imgs, dtype=img.dtype)  # [vid_num, h, w, c], double cpu memory
 
         counter = 0
         for img_num in img_nums:
             self.vid_idx.extend(
-                list(range(counter, counter+img_num-self.vid_length)))
+                list(range(counter, counter+img_num-self.vid_length+1, stride)))
             counter = counter+img_num
 
     def __getitem__(self, idx):
@@ -233,21 +251,23 @@ class VideoFrame_Dataset_all2CPU(Dataset):
         if self.tform_op:
             vid = transform(vid, tform_op=self.tform_op)
 
-        # calc coded measurement
-        coded_meas = input_data_gen(vid, self.ce_code)
+        # noise level
+        if isinstance(self.sigma_range, (int, float)):
+            noise_level = self.sigma_range
+        else:
+            noise_level = np.random.uniform(*self.sigma_range)
+
+        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
 
         # calc middle video frame
         sharp_img = vid[self.ce_code.shape[0]//2, ...]
-
-        # calc init network input(prompt)
-        init_input = init_network_input(coded_meas, self.ce_code)
 
         # [debug] test
         # multi_imsave(vid*255, 'vid')
         # cv2.imwrite('./outputs/tmp/test/coded_meas.jpg', coded_meas[:,:,::-1]*255)
         # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img[:, :, ::-1]*255)
 
-        return init_input.transpose(2, 0, 1), sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -264,16 +284,26 @@ class VideoFrame_RealExp_Dataset:
 # get dataloader
 # =================
 
-def get_data_loaders(vid_dir, ce_code, patch_size, batch_size, tform_op=None, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
-    if status == 'train' or status == 'test' or status == 'debug':
+def get_data_loaders(data_dir, ce_code, batch_size, patch_size=None, tform_op=None, sigma_range=0, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
+    if status == 'train':
         if all2CPU:
             dataset = VideoFrame_Dataset_all2CPU(
-                vid_dir, ce_code, patch_size, tform_op)
+                data_dir, ce_code, patch_size, tform_op, sigma_range)
         else:
             dataset = VideoFrame_Dataset(
-                vid_dir, ce_code, patch_size, tform_op)
+                data_dir, ce_code, patch_size, tform_op, sigma_range)
+    elif status == 'test':
+        if all2CPU:
+            dataset = VideoFrame_Dataset_all2CPU(
+                data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
+        else:
+            dataset = VideoFrame_Dataset(
+                data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
     elif status == 'real_test':
-        dataset = VideoFrame_RealExp_Dataset(vid_dir, ce_code, patch_size)
+        dataset = VideoFrame_RealExp_Dataset(data_dir, ce_code, patch_size)
+    else:
+        raise NotImplementedError(
+            f"status ({status}) should be 'train' | 'test' ")
 
     loader_args = {
         'batch_size': batch_size,
@@ -310,29 +340,31 @@ def get_data_loaders(vid_dir, ce_code, patch_size, batch_size, tform_op=None, sh
 
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(__file__) + os.sep + '../')
-    from utils.utils_image import multi_imsave
+    # from utils.utils_image_zzh import multi_imsave
 
-    vid_dir = '/ssd/2/zzh/dataset/DAVIS-2017-Unsupervised-trainval/full_resolution_small/'
-    # vid_dir = '/ssd/2/zzh/dataset/GoPro/GOPRO_Large_all/small_test/'
+    data_dir = '/ssd/0/zzh/dataset/GoPro/GOPRO_Large_all/small_test/'
+    # data_dir = '/ssd/2/zzh/dataset/GoPro/GOPRO_Large_all/small_test/'
     # ce_code = [0, 1, 1, 0, 1]
     ce_code = [1, 0, 1, 1, 1, 0, 0, 1, 0, 1]
     # ce_code = [1,0,1,1,1,0,0,0,1,0,1,1,0,0,0,1,1,0,1,1,1,0,0,0,1,0,0,0,1,1,0,1]
-    train_dataloader, val_dataloader = get_data_loaders(
-        vid_dir, ce_code, patch_size=512, tform_op=['all'], batch_size=2, num_workers=8, all2CPU=True)
+    val_dataloader = get_data_loaders(
+        data_dir, ce_code, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test')
+    # train_dataloader, val_dataloader = get_data_loaders(
+    #     data_dir, ce_code, patch_size=512, tform_op=['all'], batch_size=2, num_workers=8, all2CPU=True,status='test')
 
     k = 0
-    for coded_meas, sharp_img, init_input in val_dataloader:
+    for sharp_img, coded_meas in val_dataloader:
         k += 1
         coded_meas = coded_meas.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
         sharp_img = sharp_img.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
-        init_input = init_input.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
+        # init_input = init_input.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
 
         if not os.path.exists('./outputs/tmp/test/'):
             os.makedirs('./outputs/tmp/test/')
 
-        # cv2.imwrite('./outputs/tmp/test/coded_meas.jpg', coded_meas)
-        # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img)
+        # cv2.imwrite(f'./outputs/tmp/test/{k:03d}coded_meas.jpg', coded_meas)
+        cv2.imwrite(f'./outputs/tmp/test/{k:03d}clear.jpg', sharp_img)
         # cv2.imwrite('./outputs/tmp/test/init_input.jpg', init_input)
 
-        if k % 5 == 0:
+        if k % 1 == 0:
             print('k = ', k)

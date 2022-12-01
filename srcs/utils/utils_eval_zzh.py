@@ -65,10 +65,23 @@ def gpu_inference_time_est(model, inputs_shape, logger=None, device=None, repeti
     std_time = np.std(timings)
     if logger is not None:
         logger.info(
-            '='*20+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*20)
+            '='*40+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*40)
     else:
         print(
-            '='*20+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*20)
+            '='*40+f'\nInference Time Estimation \nInputs Shape:\t{inputs_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*40)
+
+
+# ===============
+# parameter number
+# ===============
+def param_counting(model, logger=None):
+    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    if logger is not None:
+        logger.info(
+            '='*40+f'\nTrainable parameters: {sum([p.numel() for p in trainable_params])/1e6:.2f} M\n'+'='*40)
+    else:
+        print((
+            '='*40+f'\nTrainable parameters: {sum([p.numel() for p in trainable_params])/1e6:.2f} M\n'+'='*40))
 
 
 if __name__ == '__main__':

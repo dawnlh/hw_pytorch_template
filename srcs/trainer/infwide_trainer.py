@@ -346,19 +346,9 @@ def train_worker(config):
     # build model & print its structure
     model = instantiate(config.arch)
     logger.info(model)
-
-    # calc trainable params and MACs
-    def prepare_input(resolution):
-        data_noisy = torch.FloatTensor(1, 3, *resolution[0])
-        kernel = torch.FloatTensor(1, 1, *resolution[1])
-        return dict(data_noisy=data_noisy, kernel=kernel)
-
-    macs, params = get_model_complexity_info(
-        model=model, input_res=[(config.patch_size, config.patch_size), (64, 64)], input_constructor=prepare_input, verbose=False, print_per_layer_stat=False)
+    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     logger.info(
-        '='*40+'\n{:<30}  {:<8}'.format('Computational complexity: ', macs))
-    logger.info('{:<30}  {:<8}\n'.format(
-        'Number of parameters: ', params)+'='*40)
+        '='*40+f'\nTrainable parameters: {sum([p.numel() for p in trainable_params])/1e6:.2f} M\n'+'='*40)
 
     # get function handles of loss and metrics
     criterion = {}
