@@ -90,6 +90,7 @@ class ImageDataset(Dataset):
         else:
             noise_level = np.random.uniform(*self.sigma_range)
         imgk = imgk + np.random.normal(0, noise_level, imgk.shape)
+        imgk = imgk.astype(np.float32).clip(0, 1)
 
         # [debug] test
         # multi_imsave(img*255, 'img')
@@ -169,6 +170,7 @@ class ImageDataset_all2CPU(Dataset):
         else:
             noise_level = np.random.uniform(*self.sigma_range)
         imgk = imgk + np.random.normal(0, noise_level, imgk.shape)
+        imgk = imgk.astype(np.float32).clip(0, 1)
 
         # [debug] test
         # multi_imsave(img*255, 'img')

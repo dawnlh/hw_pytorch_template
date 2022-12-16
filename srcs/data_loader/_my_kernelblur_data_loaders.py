@@ -38,7 +38,7 @@ def img_blur(img, psf, noise_level=0.01, mode='circular', cval=0):
     blur image with blur kernel
 
     Args:
-        img (ndarray): gray or rgb sharp image,[H, W <,C>]
+        img (ndarray): gray or rgb sharp image,[H, W <,C>]  (0-1)
         psf (ndarray): blur kernel,[H, W <,C>]
         noise_level (scalar): gaussian noise std (0-1)
         mode (str): convolution mode, 'circular' ('wrap') | 'constant' | ...
@@ -63,7 +63,7 @@ def img_blur(img, psf, noise_level=0.01, mode='circular', cval=0):
     # add Gaussian noise
     blur_noisy_img = blur_img + \
         np.random.normal(0, noise_level, blur_img.shape)
-    return blur_noisy_img.astype(np.float32)
+    return blur_noisy_img.astype(np.float32).clip(0, 1)
 
 
 # =================

@@ -16,46 +16,9 @@ from os.path import join as opj
 # =================
 
 
-def input_data_gen(frames, ce_code, noise_level=0):
+def vid_transform(vid, prob=0.5, tform_op=['all']):
     """
-    generate input data
-
-    Args:
-        frames (ndarray): high frame rate frames
-        ce_code (ndarray): exposure code sequence
-        noise_level: Gaussian noise sigma
-    """
-    frame_sz = frames.shape
-    _ce_code = ce_code[:, None, None, None]
-    _ce_code = np.tile(_ce_code, frame_sz[1:])
-    # print(code.shape)
-    coded_meas = np.sum(_ce_code*frames, axis=0)/len(ce_code)
-
-    # add Gaussian noise
-    coded_meas = coded_meas + \
-        np.random.normal(0, noise_level, coded_meas.shape)
-
-    return coded_meas.astype(np.float32)
-
-
-def init_network_input(coded_blur_img, ce_code):
-    """
-    calculate the initial input of the network
-
-
-    Args:
-        coded_blur_img (ndarray): coded measurement
-        ce_code (ndarray): encoding code
-    """
-
-    # rescale the input to normal light condition
-    coded_blur_img_rescale = coded_blur_img*len(ce_code)/sum(ce_code)
-    return coded_blur_img_rescale
-
-
-def transform(vid, prob=0.5, tform_op=['all']):
-    """
-    video data transform (data augment) with a $op chance
+    video data vid_transform (data augment) with a $op chance
 
     Args:
         vid ([ndarray]): [shape: N*H*W*C]
@@ -92,14 +55,13 @@ class VideoFrame_Dataset(Dataset):
     datasetfor training or test (with ground truth)
     """
 
-    def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
+    def __init__(self, data_dir, frame_num, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
         super(VideoFrame_Dataset, self).__init__()
-        self.ce_code = np.array(ce_code, dtype=np.float32)
         self.sigma_range = sigma_range
         self.patch_sz = [patch_sz] * \
-            2 if isinstance(patch_sz, int) == 1 else patch_sz
+            2 if isinstance(patch_sz, int) else patch_sz
         self.tform_op = tform_op
-        self.vid_length = len(ce_code)
+        self.vid_length = frame_num
         self.img_paths = []
         self.vid_idx = []
         self.stride = stride  # stride of the starting frame
@@ -140,16 +102,20 @@ class VideoFrame_Dataset(Dataset):
             assert img is not None, 'Image read falied'
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-            if self.patch_sz and k == self.vid_idx[idx]:
-                img_sz = img.shape
-                assert (img_sz[0] >= self.patch_sz[0]) and (img_sz[1] >= self.patch_sz[1]
-                                                            ), 'error PATCH_SZ larger than image size'
-                xmin = np.random.randint(0, img_sz[1]-self.patch_sz[1])
-                ymin = np.random.randint(0, img_sz[0]-self.patch_sz[0])
+            if self.patch_sz:
+                if k == self.vid_idx[idx]:
+                    # set the random crop point
+                    img_sz = img.shape
+                    assert (img_sz[0] >= self.patch_sz[0]) and (img_sz[1] >= self.patch_sz[1]
+                                                                ), 'error PATCH_SZ larger than image size'
+                    xmin = np.random.randint(0, img_sz[1]-self.patch_sz[1])
+                    ymin = np.random.randint(0, img_sz[0]-self.patch_sz[0])
 
-            # crop to patch size
-            img_crop = img[ymin:ymin+self.patch_sz[0],
-                           xmin:xmin+self.patch_sz[1], :]
+                # crop to patch size
+                img_crop = img[ymin:ymin+self.patch_sz[0],
+                               xmin:xmin+self.patch_sz[1], :]
+            else:
+                img_crop = img
 
             vid.append(img_crop)
 
@@ -157,21 +123,16 @@ class VideoFrame_Dataset(Dataset):
 
         # data augment
         if self.tform_op:
-            vid = transform(vid, tform_op=self.tform_op)
+            vid = vid_transform(vid, tform_op=self.tform_op)
 
-        # noise level
+        # add noise
         if isinstance(self.sigma_range, (int, float)):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
+        vid = vid + np.random.normal(0, noise_level, vid.shape)
 
-        # calc coded measurement
-        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
-
-        # calc middle video frame
-        sharp_img = vid[self.ce_code.shape[0]//2, ...]
-
-        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return vid.transpose(0, 3, 1, 2)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -182,14 +143,13 @@ class VideoFrame_Dataset_all2CPU(Dataset):
     Dataset for training or test (with ground truth), load entire dataset to CPU to speed the data load process
     """
 
-    def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
+    def __init__(self, data_dir, frame_num, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
         super(VideoFrame_Dataset_all2CPU, self).__init__()
-        self.ce_code = np.array(ce_code, dtype=np.float32)
         self.sigma_range = sigma_range
         self.patch_sz = [patch_sz] * \
-            2 if isinstance(patch_sz, int) == 1 else patch_sz
+            2 if isinstance(patch_sz, int) else patch_sz
         self.tform_op = tform_op
-        self.vid_length = len(ce_code)
+        self.vid_length = frame_num
         self.img_paths = []
         self.vid_idx = []  # start frame index of each video
         self.imgs = []
@@ -249,25 +209,21 @@ class VideoFrame_Dataset_all2CPU(Dataset):
                       xmin:xmin+self.patch_sz[1], :]
         # data augment
         if self.tform_op:
-            vid = transform(vid, tform_op=self.tform_op)
+            vid = vid_transform(vid, tform_op=self.tform_op)
 
-        # noise level
+        # add noise
         if isinstance(self.sigma_range, (int, float)):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
-
-        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
-
-        # calc middle video frame
-        sharp_img = vid[self.ce_code.shape[0]//2, ...]
+        vid = vid + np.random.normal(0, noise_level, vid.shape)
 
         # [debug] test
         # multi_imsave(vid*255, 'vid')
         # cv2.imwrite('./outputs/tmp/test/coded_meas.jpg', coded_meas[:,:,::-1]*255)
         # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img[:, :, ::-1]*255)
 
-        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return vid.transpose(0, 3, 1, 2)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -284,23 +240,23 @@ class VideoFrame_RealExp_Dataset:
 # get dataloader
 # =================
 
-def get_data_loaders(data_dir, ce_code, batch_size, patch_size=None, tform_op=None, sigma_range=0, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
+def get_data_loaders(data_dir, frame_num, batch_size, patch_size=None, tform_op=None, sigma_range=0, shuffle=True, validation_split=0.1, status='train', num_workers=8, pin_memory=False, prefetch_factor=2, all2CPU=True):
     if status == 'train':
         if all2CPU:
             dataset = VideoFrame_Dataset_all2CPU(
-                data_dir, ce_code, patch_size, tform_op, sigma_range)
+                data_dir, frame_num, patch_size, tform_op, sigma_range)
         else:
             dataset = VideoFrame_Dataset(
-                data_dir, ce_code, patch_size, tform_op, sigma_range)
+                data_dir, frame_num, patch_size, tform_op, sigma_range)
     elif status == 'test':
         if all2CPU:
             dataset = VideoFrame_Dataset_all2CPU(
-                data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
+                data_dir, frame_num, patch_size, tform_op, sigma_range, frame_num)
         else:
             dataset = VideoFrame_Dataset(
-                data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
+                data_dir, frame_num, patch_size, tform_op, sigma_range, frame_num)
     elif status == 'real_test':
-        dataset = VideoFrame_RealExp_Dataset(data_dir, ce_code, patch_size)
+        dataset = VideoFrame_RealExp_Dataset(data_dir, frame_num, patch_size)
     else:
         raise NotImplementedError(
             f"status ({status}) should be 'train' | 'test' ")
@@ -344,27 +300,22 @@ if __name__ == '__main__':
 
     data_dir = '/ssd/0/zzh/dataset/GoPro/GOPRO_Large_all/small_test/'
     # data_dir = '/ssd/2/zzh/dataset/GoPro/GOPRO_Large_all/small_test/'
-    # ce_code = [0, 1, 1, 0, 1]
-    ce_code = [1, 0, 1, 1, 1, 0, 0, 1, 0, 1]
-    # ce_code = [1,0,1,1,1,0,0,0,1,0,1,1,0,0,0,1,1,0,1,1,1,0,0,0,1,0,0,0,1,1,0,1]
+    frame_num = 10
     val_dataloader = get_data_loaders(
-        data_dir, ce_code, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test')
+        data_dir, frame_num, batch_size=1, num_workers=8, shuffle=False, all2CPU=False, status='test')
     # train_dataloader, val_dataloader = get_data_loaders(
-    #     data_dir, ce_code, patch_size=512, tform_op=['all'], batch_size=2, num_workers=8, all2CPU=True,status='test')
+    #     data_dir, frame_num, patch_size=512, tform_op=['all'], batch_size=2, num_workers=8, all2CPU=True,status='test')
 
-    k = 0
-    for sharp_img, coded_meas in val_dataloader:
-        k += 1
-        coded_meas = coded_meas.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
-        sharp_img = sharp_img.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
-        # init_input = init_input.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
+    for k, vid in enumerate(val_dataloader):
+
+        vid = vid.numpy()[0, :, ::-1, ...].squeeze().transpose(0, 2, 3, 1)*255
 
         if not os.path.exists('./outputs/tmp/test/'):
             os.makedirs('./outputs/tmp/test/')
 
-        # cv2.imwrite(f'./outputs/tmp/test/{k:03d}coded_meas.jpg', coded_meas)
-        cv2.imwrite(f'./outputs/tmp/test/{k:03d}clear.jpg', sharp_img)
-        # cv2.imwrite('./outputs/tmp/test/init_input.jpg', init_input)
+        for kk in range(frame_num):
+            cv2.imwrite(
+                f'./outputs/tmp/test/{k*frame_num+kk+1:03d}img.jpg', vid[kk])
 
         if k % 1 == 0:
             print('k = ', k)
