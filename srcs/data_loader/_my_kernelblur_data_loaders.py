@@ -14,7 +14,13 @@ import torch.nn.functional as F
 
 
 # =================
-# loading single frame and blur it
+# loading single image from a directory or multiple directories, and blurring it with kernels
+#
+# data dir structure:
+#     data_dir1
+#     ├─ img1
+#     ├─ img2
+#     ├─ ...
 # =================
 
 # =================
@@ -188,7 +194,7 @@ class BlurImgDataset(Dataset):
 
 class BlurImgDataset_all2CPU(Dataset):
     """
-    generate blur image from shape image, load entire dataset to CPU to speed the data load process
+    generate blur image from shape image, load entire dataset to CPU to speed up the data load process
     """
 
     def __init__(self, data_dir, ce_code=None, patch_sz=None, tform_op=None, sigma_range=0, motion_len=0, load_psf_dir=None):
@@ -311,9 +317,9 @@ class BlurImgDataset_all2CPU(Dataset):
         return self.img_num
 
 
-class CED_RealExpDataset:
+class BlurImgDataset_RealExp:
     """
-    CE datasetfor real test (without ground truth)
+    datasetfor real test
     """
     pass
 
@@ -332,7 +338,7 @@ def get_data_loaders(data_dir, ce_code=None, patch_size=None, batch_size=8, tfor
             dataset = BlurImgDataset(
                 data_dir, ce_code, patch_size, tform_op, sigma_range, motion_len, load_psf_dir=load_psf_dir)
     elif status == 'real_test':
-        dataset = CED_RealExpDataset(data_dir, ce_code, patch_size)
+        dataset = BlurImgDataset_RealExp(data_dir, ce_code, patch_size)
 
     loader_args = {
         'batch_size': batch_size,

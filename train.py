@@ -2,6 +2,7 @@ import numpy as np
 import os
 import hydra
 import torch
+import warnings
 from omegaconf import OmegaConf
 from importlib import import_module
 
@@ -14,6 +15,9 @@ torch.manual_seed(SEED)
 torch.cuda.manual_seed(SEED)
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = True
+
+# ignore warning
+warnings.filterwarnings('ignore')
 
 # config: infwide_train
 

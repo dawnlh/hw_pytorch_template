@@ -2,8 +2,12 @@
 import os
 import torch
 import hydra
+import warnings
 from omegaconf import OmegaConf
 from importlib import import_module
+
+# ignore warning
+warnings.filterwarnings('ignore')
 
 # config: infwide_test
 

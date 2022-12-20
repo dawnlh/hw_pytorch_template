@@ -8,17 +8,66 @@ import os
 import numpy as np
 from tqdm import tqdm
 from os.path import join as opj
-# from srcs.utils.utils_image_zzh import augment_img
+from srcs.utils.utils_image_zzh import augment_img
 
 
 # =================
 # loading single image
+# dir structure: traversing all the subdirs
 # =================
 
 # =================
 # basic functions
 # =================
+def file_traverse(dir, ext=None):
+    """
+    traverse all the files and get their paths
+    Args:
+        dir (str): root dir path
+        ext (list[str], optional): included file extensions. Defaults to None, meaning inculding all files.
+    """
 
+    data_paths = []
+    skip_num = 0
+    file_num = 0
+
+    for dirpath, dirnames, filenames in os.walk(dir):
+        for filename in filenames:
+            img_path = opj(dirpath, filename)
+            if ext and img_path.split('.')[-1] not in ext:
+                print('Skip a file: %s' % (img_path))
+                skip_num += 1
+            else:
+                data_paths.append(img_path)
+                file_num += 1
+    return sorted(data_paths), file_num, skip_num
+
+
+def get_file_path(data_dir, ext=None):
+    """
+    Get file paths for given directory or directories
+
+    Args:
+        data_dir (str): root dir path
+        ext (list[str], optional): included file extensions. Defaults to None, meaning inculding all files.
+    """
+
+    if isinstance(data_dir, str):
+        # single dataset
+        data_paths, file_num, skip_num = file_traverse(data_dir, ext)
+    elif isinstance(data_dir, list):
+        # multiple datasets
+        data_paths, file_num, skip_num = [], 0, 0
+        for data_dir_n in sorted(data_dir):
+            data_paths_n, file_num_n, skip_num_n = file_traverse(
+                data_dir_n, ext)
+            data_paths.extend(data_paths_n)
+            file_num += file_num_n
+            skip_num += skip_num_n
+    else:
+        raise ValueError('data dir should be a str or a list of str')
+
+    return sorted(data_paths), file_num, skip_num
 
 # =================
 # Dataset
@@ -36,33 +85,11 @@ class ImageDataset(Dataset):
             2 if isinstance(patch_size, int) else patch_size
         self.tform_op = tform_op
         self.sigma_range = sigma_range
-        self.img_paths = []
-        self.imgs = []
-        self.img_num = None
 
         # get image paths and load images
-        img_paths = []
-        if isinstance(data_dir, str):
-            # single dataset
-            img_names = sorted(os.listdir(data_dir))
-            img_paths = [opj(data_dir, img_name) for img_name in img_names]
-        else:
-            # multiple dataset
-            for data_dir_n in sorted(data_dir):
-                img_names_n = sorted(os.listdir(data_dir_n))
-                img_paths_n = [opj(data_dir_n, img_name_n)
-                               for img_name_n in img_names_n]
-                img_paths.extend(img_paths_n)
-        self.img_paths = img_paths
-
-        # remove non-image path
-        for img_path in self.img_paths:
-            if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
-                print('Skip a non-image file: %s' % (img_path))
-                self.img_paths.remove(img_path)
-
-        self.img_num = len(self.img_paths)
-        print('===> dataset image num: %d' % self.img_num)
+        ext = ['jpg', 'png', 'tif', 'bmp']
+        self.img_paths, self.img_num, skip_num = get_file_path(data_dir, ext)
+        print(f'===> total dataset image num: {self.img_num}')
 
     def __getitem__(self, idx):
         # load image
@@ -92,11 +119,6 @@ class ImageDataset(Dataset):
         imgk = imgk + np.random.normal(0, noise_level, imgk.shape)
         imgk = imgk.astype(np.float32).clip(0, 1)
 
-        # [debug] test
-        # multi_imsave(img*255, 'img')
-        # cv2.imwrite('./outputs/tmp/test/coded_blur_img.jpg', coded_blur_img[:,:,::-1]*255)
-        # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img[:, :, ::-1]*255)
-
         # return [C,H,W]
         return imgk.transpose(2, 0, 1),  noise_level
 
@@ -119,26 +141,12 @@ class ImageDataset_all2CPU(Dataset):
         self.imgs = []
         self.img_num = None
 
-        # get image paths and load images
-        img_paths = []
-        if isinstance(data_dir, str):
-            # single dataset
-            img_names = sorted(os.listdir(data_dir))
-            img_paths = [opj(data_dir, img_name) for img_name in img_names]
-        else:
-            # multiple dataset
-            for data_dir_n in sorted(data_dir):
-                img_names_n = sorted(os.listdir(data_dir_n))
-                img_paths_n = [opj(data_dir_n, img_name_n)
-                               for img_name_n in img_names_n]
-                img_paths.extend(img_paths_n)
-        self.img_paths = img_paths
+        # get image paths
+        ext = ['jpg', 'png', 'tif', 'bmp']
+        img_paths, self.img_num, skip_num = get_file_path(data_dir, ext)
 
-        for img_path in tqdm(self.img_paths, desc='Loading dataset to CPU'):
-
-            if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
-                print('Skip a non-image file: %s' % img_path)
-                continue
+        # load images
+        for img_path in tqdm(img_paths, desc='Loading dataset to CPU'):
             img = cv2.imread(img_path)
             assert img is not None, 'Image-%s read falied' % img_path
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -172,12 +180,6 @@ class ImageDataset_all2CPU(Dataset):
         imgk = imgk + np.random.normal(0, noise_level, imgk.shape)
         imgk = imgk.astype(np.float32).clip(0, 1)
 
-        # [debug] test
-        # multi_imsave(img*255, 'img')
-        # cv2.imwrite('./outputs/tmp/test/coded_blur_img.jpg', coded_blur_img[:,:,::-1]*255)
-        # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img[:, :, ::-1]*255)
-
-        # return [C,H,W]
         return imgk.transpose(2, 0, 1),  noise_level
 
     def __len__(self):
@@ -243,37 +245,25 @@ def get_data_loaders(data_dir, batch_size=8, tform_op=None, sigma_range=0, patch
 
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(__file__) + os.sep + '../')
-    from utils import utils_deblur_zzh
-    from utils import utils_deblur_kair
     from utils.utils_image_zzh import augment_img
 
-    # data_dir = '/ssd/2/zzh/dataset/Flickr2K_HR/'
-    # data_dir = '/ssd/2/zzh/dataset/BSDS500_images/val/'
-    data_dir = '/ssd/2/zzh/dataset/CBSD68/'
-    # data_dir = '/ssd/2/zzh/dataset/DIV2K_valid_HR/'
-    # data_dir = '/ssd/2/zzh/dataset/Waterloo_Exploration_Database/images/'
+    data_dir = '/ssd/0/zzh/dataset/GoPro/GOPRO_Large/test/GOPR0384_11_00/sharp/'
 
     save_dir = './outputs/tmp/test/'
 
-    # train_dataloader, val_dataloader = get_data_loaders(
-    #     data_dir,  tform_op=['all'], sigma_range=0.1, patch_size=256, batch_size=1, num_workers=8, all2CPU=False)
+    dataloader, val_dataloader = get_data_loaders(
+        data_dir,  tform_op=['all'], sigma_range=0.1, patch_size=256, batch_size=1, num_workers=8, all2CPU=False)
 
-    test_dataloader = get_data_loaders(
-        data_dir, patch_size=None, sigma_range=0, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test',)
-
-    iter_dataloader = test_dataloader
+    # dataloader = get_data_loaders(
+    #     data_dir, patch_size=None, sigma_range=0, batch_size=1, num_workers=8, shuffle=False, all2CPU=True, status='test')
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    k = 0
 
-    for imgk, noise_level in iter_dataloader:  # val_dataloader
-        k += 1
+    for k, in_data in enumerate(dataloader):  # val_dataloader
+        imgk, noise_level = in_data
+
         imgk = imgk.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
-
-        # import matplotlib.pyplot as plt
-        # plt.imshow(psf, interpolation="nearest", cmap="gray")
-        # plt.show()
 
         if k % 1 == 0:
             print('k = ', k)

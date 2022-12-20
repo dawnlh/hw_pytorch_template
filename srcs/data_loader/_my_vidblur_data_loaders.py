@@ -7,8 +7,22 @@ import os
 import numpy as np
 from tqdm import tqdm
 from os.path import join as opj
+
 # =================
 # loading multiple frames from a video and average them to form a blur image
+#
+# dataset for loading multiple video frames
+# data dir structure:
+#     data_dir
+#     ├─ vid_dir1
+#     |  ├─ frame1
+#     |  ├─ frame2
+#     |  ├─ ...
+#     ├─ vid_dir2
+#     |  ├─ frame1
+#     |  ├─ frame2
+#     |  ├─ ...
+#     ├─ ...
 # =================
 
 # =================
@@ -89,7 +103,7 @@ def transform(vid, prob=0.5, tform_op=['all']):
 
 class VidBlur_Dataset(Dataset):
     """
-    datasetfor training or test (with ground truth)
+    dataset for loading multiple video frames, load one batch before each iter
     """
 
     def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
@@ -183,7 +197,7 @@ class VidBlur_Dataset(Dataset):
 
 class VidBlur_Dataset_all2CPU(Dataset):
     """
-    Dataset for training or test (with ground truth), load entire dataset to CPU to speed the data load process
+    dataset for loading multiple video frames,, load entire dataset to CPU to speed up the data load process
     """
 
     def __init__(self, data_dir, ce_code, patch_sz=None, tform_op=None, sigma_range=0, stride=1):
@@ -277,9 +291,9 @@ class VidBlur_Dataset_all2CPU(Dataset):
         return len(self.vid_idx)
 
 
-class VidBlur_RealExp_Dataset:
+class VidBlur_Dataset_RealExp:
     """
-    Datasetfor real test (without ground truth)
+    Datasetfor real test
     """
     pass
 
@@ -304,7 +318,8 @@ def get_data_loaders(data_dir, ce_code, batch_size, patch_size=None, tform_op=No
             dataset = VidBlur_Dataset(
                 data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
     elif status == 'real_test':
-        dataset = VidBlur_RealExp_Dataset(data_dir, ce_code, patch_size)
+        dataset = VidBlur_Dataset_RealExp(
+            data_dir, ce_code, patch_size)
     else:
         raise NotImplementedError(
             f"status ({status}) should be 'train' | 'test' ")
