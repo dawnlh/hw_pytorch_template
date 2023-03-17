@@ -85,6 +85,15 @@ class BaseTrainer(metaclass=ABCMeta):
         """
         raise NotImplementedError
 
+    @abstractmethod
+    def _val_epoch(self, epoch):
+        """
+        Validation logic for an epoch
+
+        :param epoch: Current epoch number
+        """
+        raise NotImplementedError
+
     def _test_epoch(self):
         """
         Final test logic after the training

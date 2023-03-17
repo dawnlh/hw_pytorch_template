@@ -8,7 +8,7 @@ from abc import abstractmethod, ABCMeta
 from pathlib import Path
 from shutil import copyfile
 from numpy import inf
-from srcs.utils.util import write_conf, is_master, get_logger, collect
+from srcs.utils._util import write_conf, is_master, get_logger, collect
 from srcs.logger import TensorboardWriter, EpochMetrics, BatchMetrics
 from os.path import join as opj
 
