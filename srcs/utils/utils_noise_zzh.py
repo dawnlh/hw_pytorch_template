@@ -227,7 +227,7 @@ class BasicNoiseModel(object):
     """
     Basic Noise models (numpy based) including gaussian, poisson, sault-pepper
     """
-    # NotImplementment Now
+    # NotImp Now
 
     def __init__(self, noise_type: str, noise_parameters: dict = {}):
         """
