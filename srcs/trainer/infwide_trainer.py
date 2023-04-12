@@ -45,6 +45,7 @@ class Trainer(BaseTrainer):
             'limit_valid_iters', len(self.valid_data_loader))
         if not self.limit_valid_iters or self.limit_valid_iters > len(self.valid_data_loader):
             self.limit_valid_iters = len(self.valid_data_loader)
+        self.log_weight = config['trainer'].get('log_weight', False)
         args = ['loss', *[m.__name__ for m in self.metric_ftns]]
         self.train_metrics = BatchMetrics(
             *args, postfix='/train', writer=self.writer)
@@ -235,8 +236,9 @@ class Trainer(BaseTrainer):
                     break
 
         # add histogram of model parameters to the tensorboard
-        for name, p in self.model.named_parameters():
-            self.writer.add_histogram(name, p, bins='auto')
+        if self.log_weight:
+            for name, p in self.model.named_parameters():
+                self.writer.add_histogram(name, p, bins='auto')
         return self.valid_metrics.result()
 
     def _test_epoch(self):

@@ -30,6 +30,7 @@ trainer:
   saving_latest_k: 5      # save top k checkpoints (best checkpoints saved separately)
   logging_step: 400       # one log / $logging_step iteration
   tensorboard: true       # use tensorboard for training log
+  log_weight: False       # log weight in tensorboard
 
 
 

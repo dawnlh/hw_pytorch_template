@@ -37,6 +37,7 @@ class Trainer(BaseTrainer2):
 
         self.init_epochs = self.config['trainer'].get(
             'init_epochs', {'a': 0, 'b': 0})  # init epoch
+        self.log_weight = config['trainer'].get('log_weight', False)
         self.grad_clip = 0.5  # optimizer gradient clip value
         self.win_size = 80  # slicing window size, psf size
         self.n_levels = 2  # model scale levels
@@ -512,10 +513,11 @@ class Trainer(BaseTrainer2):
                     break
 
         # add histogram of model parameters to the tensorboard
-        for name, p in self.model_a.named_parameters():
-            self.writer.add_histogram(name, p, bins='auto')
-        for name, p in self.model_b.named_parameters():
-            self.writer.add_histogram(name, p, bins='auto')
+        if self.log_weight:
+            for name, p in self.model_a.named_parameters():
+                self.writer.add_histogram(name, p, bins='auto')
+            for name, p in self.model_b.named_parameters():
+                self.writer.add_histogram(name, p, bins='auto')
 
         return self.valid_metrics_a.result(), self.valid_metrics_b.result()
 
