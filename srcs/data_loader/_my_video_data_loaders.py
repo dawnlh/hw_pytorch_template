@@ -249,6 +249,39 @@ class VideoFrame_Dataset_all2CPU(Dataset):
         return len(self.vid_idx)
 
 
+class Blurimg_RealExp_Dataset_all2CPU:
+    """
+    Dataset for real test: load real blurry image with no gt
+    """
+
+    def __init__(self, data_dir):
+        super(Blurimg_RealExp_Dataset_all2CPU, self).__init__()
+        self.data_dir = data_dir
+        self.imgs = []
+
+        # get blurry imag path
+        if isinstance(data_dir, str):
+            blur_names = sorted(os.listdir(data_dir))
+            self.blur_paths = [opj(data_dir, blur_name)
+                               for blur_name in blur_names]
+        else:
+            raise ValueError('data_dir should be a str')
+
+        # load blurry image
+        for img_path in tqdm(self.blur_paths, desc='Loading image to CPU'):
+            img = cv2.imread(img_path)
+            assert img is not None, 'Image read falied'
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            self.imgs.append(img)
+
+    def __getitem__(self, idx):
+        img = np.array(self.imgs[idx], dtype=np.float32)/255
+        return img.transpose(2, 0, 1)
+
+    def __len__(self):
+        return len(self.imgs)
+
+
 # =================
 # get dataloader
 # =================

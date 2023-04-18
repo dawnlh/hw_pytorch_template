@@ -7,9 +7,11 @@ from pathlib import Path
 from shutil import copyfile
 from numpy import inf
 import time
+from datetime import datetime
 from srcs.utils._util import write_conf, is_master, get_logger, collect
 from srcs.logger import TensorboardWriter, EpochMetrics
 import os
+from os.path import join as opj
 
 
 class BaseTrainer(metaclass=ABCMeta):
@@ -73,7 +75,9 @@ class BaseTrainer(metaclass=ABCMeta):
 
         if config.resume is not None:
             resume_conf = config.get(
-                'resume_conf', [])  # resume config
+                'resume_conf', None)
+            if resume_conf is None:
+                resume_conf = ['epoch', 'optimizer']
             self._resume_checkpoint(config.resume, resume_conf)
 
     @abstractmethod
@@ -96,7 +100,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
     def _test_epoch(self):
         """
-        Final test logic after the training
+        Final test logic after the training (! test the latest checkpoint)
 
         :param epoch: Current epoch number
         """
@@ -107,8 +111,9 @@ class BaseTrainer(metaclass=ABCMeta):
         Full training logic
         """
         not_improved_count = 0
+        train_start = time.time()
         for epoch in range(self.start_epoch, self.epochs + 1):
-            time_start = time.time()
+            epoch_start = time.time()
             result = self._train_epoch(epoch)
             self.ep_metrics.update(epoch, result)
 
@@ -134,8 +139,11 @@ class BaseTrainer(metaclass=ABCMeta):
                                      "Training stops.".format(self.early_stop))
                     if self.final_test:
                         self.logger.info(
-                            '*** Finish Training *** \n\n ===> Start Testing (Using Latest Checkpoint)\n')
+                            '☝ Finish Training! ✌ \n\n ===> Start Testing(Using Latest Checkpoint): \n')
                         self._test_epoch()
+                    else:
+                        self.logger.info(
+                            '☝ Finish Training! ✌\n\n')
                     exit(1)
 
                 using_topk_save = self.saving_top_k > 0
@@ -148,16 +156,19 @@ class BaseTrainer(metaclass=ABCMeta):
 
                 self.ep_metrics.to_csv('epoch-results.csv')
 
-            time_end = time.time()
-            # divider ===
-            self.logger.info(f'Epoch Time Cost: {time_end-time_start:.2f}s')
+            epoch_end = time.time()
+            self.logger.info(
+                f'✈ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_end-epoch_start:.2f}s, Total Time Cost: {(epoch_end-train_start)/3600:.2f}h\n')
             self.logger.info('=' * max_line_width)
             if self.config.n_gpu > 1:
                 dist.barrier()
         if self.final_test:
             self.logger.info(
-                '*** Finish Training *** \n\n ===> Start Testing (Using Latest Checkpoint)\n')
+                '☝ Finish Training! ✌ \n\n ===> Start Testing(Using Latest Checkpoint): \n')
             self._test_epoch()
+        else:
+            self.logger.info(
+                '☝ Finish Training! ✌\n\n')
 
     def _after_iter(self, epoch, batch_idx, phase, loss, metrics, image_tensors: dict):
         # TBD
@@ -175,7 +186,7 @@ class BaseTrainer(metaclass=ABCMeta):
             self.writer.add_image(
                 f'{phase}/{k}', make_grid(image_tensors[k].cpu(), nrow=2, normalize=True))
 
-    def _after_epoch(self, ep, result, time_cost):
+    def _after_epoch(self, ep, result, epoch_time, total_time):
         # TBD
         # hook after epoch
         # choose model
@@ -196,7 +207,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
         # divider ===
         self.logger.info(
-            f'Epoch Time Cost: {time_cost:.2f}s')
+            f'✈ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_time:.2f}s, Total Time Cost: {total_time/3600:.2f}h\n')
         self.logger.info('=' * max_line_width)
 
         # saving checkpoint
@@ -234,38 +245,38 @@ class BaseTrainer(metaclass=ABCMeta):
             best_path = str(self.checkpt_dir / 'model_best.pth')
             copyfile(filename, best_path)
             self.logger.info(
-                f"Renewing best checkpoint: \n    .../{best_path}\n")
+                f"※ Renewing best checkpoint!")
 
-    def _resume_checkpoint(self, resume_path, resume_conf=[]):
+    def _resume_checkpoint(self, resume_path, resume_conf=['epoch', 'optimizer']):
         """
         Resume from saved checkpoints
 
+        :param resume_path: Checkpoint path to be resumed
         :param resume_conf: resume config that controls what to resume
         """
 
+        resume_path = opj(os.getcwd(), self.config['resume'])
         self.logger.info(f"Loading checkpoint: {resume_path} ...")
         checkpoint = torch.load(resume_path)
 
         # load architecture params from checkpoint.
-        if checkpoint['config']['arch'] != self.config['arch']:
+        if checkpoint['config'].get('arch', None) != self.config.get('arch', None):
             self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
                                 "checkpoint. This may yield an exception while state_dict is being loaded.")
         self.model.load_state_dict(checkpoint['state_dict'])
 
-        # load optimizer state from checkpoint only when optimizer type and learning rate configuration is not changed.
+        # load optimizer state from checkpoint
         if 'optimizer' in resume_conf:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             self.logger.info(
                 f'Optimizer resumed from the loaded checkpoint!')
 
-        # resume epoch start point
+        # epoch start point
         if 'epoch' in resume_conf:
             self.start_epoch = checkpoint['epoch'] + 1
             self.logger.info(
                 f"Start training model from resumed epoch ({checkpoint['epoch']}).")
         else:
+            self.start_epoch = 1
             self.logger.info(
                 f"Start training model from restarted epoch (1).")
-
-        # for others' codes
-        # self.model.load_state_dict(torch.load(resume_path))
