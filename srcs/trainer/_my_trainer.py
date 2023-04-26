@@ -144,7 +144,7 @@ class Trainer(BaseTrainer):
             self.optimizer.step()
 
             # iter record
-            if batch_idx % self.logging_step == 0 or batch_idx == self.limit_train_iters:
+            if batch_idx % self.logging_step == 0 or (batch_idx+1) == self.limit_train_iters:
                 # iter metrics
                 _output = output[1]
                 iter_metrics = {}
@@ -163,13 +163,19 @@ class Trainer(BaseTrainer):
 
                 # aftet iter hook
                 self._after_iter(epoch, batch_idx, 'train',
-                                 loss, iter_metrics, image_tensors)
+                                 loss, iter_metrics, {}) # don't save images in every iter to save space
                 # iter log
                 self.logger.info(
                     f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
 
-            if batch_idx == self.limit_train_iters:
-                break
+            # reach maximum training iters, endding epoch
+            if (batch_idx+1) == self.limit_train_iters:
+                # save demo images to tensorboard after trainig epoch
+                self.writer.set_step(epoch)
+                for k, v in image_tensors.items():
+                    self.writer.add_image(
+                        f'train/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+                break  # endding epoch
 
         log = self.train_metrics.result()
 
@@ -231,10 +237,16 @@ class Trainer(BaseTrainer):
 
                 # aftet iter hook
                 self._after_iter(epoch, batch_idx, 'valid',
-                                 loss, iter_metrics, image_tensors)
+                                 loss, iter_metrics, {}) # don't save images in every iter to save space
 
-                if batch_idx == self.limit_valid_iters:
-                    break
+                # reach maximum validation iters, endding epoch
+                if (batch_idx+1) == self.limit_valid_iters:
+                    # save demo images to tensorboard after valid epoch
+                    self.writer.set_step(epoch)
+                    for k, v in image_tensors.items():
+                        self.writer.add_image(
+                            f'valid/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
+                    break # endding epoch
 
         # add histogram of model parameters to the tensorboard
         if self.log_weight:

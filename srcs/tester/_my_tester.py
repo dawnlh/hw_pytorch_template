@@ -12,6 +12,7 @@ from srcs.utils.utils_image_kair import tensor2uint, imsave
 from srcs.utils.utils_eval_zzh import gpu_inference_time_est
 from ptflops import get_model_complexity_info
 
+
 def testing(gpus, config):
     test_worker(gpus, config)
 
@@ -88,6 +89,10 @@ def test(test_data_loader, model,  device, criterion, metrics, config):
 
     # init
     model = model.to(device)
+    if config.get('save_img', False):
+        os.makedirs(config.outputs_dir+'/input')
+        os.makedirs(config.outputs_dir+'/output')
+        os.makedirs(config.outputs_dir+'/kernel')
 
     # inference time test
     input_shape = (1, 3, 256, 256)  # test image size
@@ -105,21 +110,22 @@ def test(test_data_loader, model,  device, criterion, metrics, config):
 
             output, = model(data_noisy, kernel)
 
+            # save some sample images
+            if config.get('save_img', False):
+                for k, (in_img, kernel_img, out_img, gt_img) in enumerate(zip(data_noisy, kernel, output, target)):
+                    in_img = tensor2uint(in_img)
+                    kernel_img = tensor2uint(kernel_img/torch.max(kernel_img))
+                    out_img = tensor2uint(out_img)
+                    gt_img = tensor2uint(gt_img)
 
-            # save sample images here
-            for k, (in_img, kernel_img, out_img, gt_img) in enumerate(zip(data_noisy, kernel, output, target)):
-                in_img = tensor2uint(in_img)
-                kernel_img = tensor2uint(kernel_img/torch.max(kernel_img))
-                out_img = tensor2uint(out_img)
-                gt_img = tensor2uint(gt_img)
+                    imsave(
+                        in_img, f'{config.outputs_dir}input/test{i+1:03d}_{k+1:03d}_input.png')
+                    # imsave(
+                    #     kernel_img, f'{config.outputs_dir}kernel/test{i+1:03d}_{k+1:03d}_kernel.png')
+                    imsave(
+                        out_img, f'{config.outputs_dir}output/test{i+1:03d}_{k+1:03d}_output.png')
 
-                imsave(
-                    in_img, f'{config.outputs_dir}test{i+1:03d}_{k+1:03d}_input.png')
-                # imsave(
-                #     kernel_img, f'{config.outputs_dir}test{i+1:03d}_{k+1:03d}_kernel.png')
-                imsave(
-                    out_img, f'{config.outputs_dir}test{i+1:03d}_{k+1:03d}_output.png')
-                break  # save one image per batch
+                   # break  # save one image per batch
 
             # computing loss, metrics on test set
             loss = criterion['main_loss'](output, target)
