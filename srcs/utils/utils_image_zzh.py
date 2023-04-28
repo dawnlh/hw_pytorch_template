@@ -59,6 +59,12 @@ def augment_vid(vid, prob=0.5, tform_op=['all']):
         elif prob/2 < np.random.rand() <= prob:
             vid = np.transpose(
                 vid[:, ::-1, :, :][:, :, ::-1, :], axes=(0, 2, 1, 3))[:, ::-1, ...]  # 90
+    if 'reverse' in tform_op or 'all' in tform_op:
+        # reverse video's frame order
+        if np.random.rand() < prob:
+            vid = vid[::-1, ...]
+
+    return vid.copy()
 
 # ===============
 # padding

@@ -132,8 +132,9 @@ class GoproDataset(Dataset):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
-        blurk = blurk + np.random.normal(0, noise_level, blurk.shape)
-        blurk = blurk.astype(np.float32).clip(0, 1)
+        blurk = blurk + \
+            np.random.normal(0, noise_level, blurk.shape).astype(np.float32)
+        blurk = blurk.clip(0, 1)
 
         # [debug] test
         # cv2.imwrite('./outputs/tmp/test/blur.jpg', blurk[:, :, ::-1]*255)
@@ -217,8 +218,9 @@ class GoproDataset_all2CPU(Dataset):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
-        blurk = blurk + np.random.normal(0, noise_level, blurk.shape)
-        blurk = blurk.astype(np.float32).clip(0, 1)
+        blurk = blurk + \
+            np.random.normal(0, noise_level, blurk.shape).astype(np.float32)
+        blurk = blurk.clip(0, 1)
 
         # [debug] test
         # cv2.imwrite('./outputs/tmp/test/coded_blur_img.jpg', coded_blur_img[:,:,::-1]*255)

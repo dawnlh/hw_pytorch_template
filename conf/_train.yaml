@@ -41,7 +41,7 @@ metrics:
 
 ##### data & net config files
 defaults:
-  - data: [train_data]          # dataset config | [_my_train_data,_my_test_data,_my_valid_data]
+  - data: [_my_train_data]          # dataset config | [_my_train_data,_my_test_data,_my_valid_data]
   - network: _my_net             # network config
   - hparams: _my_hyparams
 

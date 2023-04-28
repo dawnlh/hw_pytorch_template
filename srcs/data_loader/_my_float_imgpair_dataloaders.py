@@ -14,6 +14,7 @@ from srcs.utils.utils_image_zzh import augment_img
 # =================
 # loading image pairs frm data_dir and target_dir according to filename order
 # dir structure: traversing all the subdirs
+# output data: shape=[C,H,W], dtype=float32, range=[0,1]
 # =================
 
 # =================
@@ -135,10 +136,13 @@ class ImagePairDataset(Dataset):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
-        datak = datak + np.random.normal(0, noise_level, datak.shape)
-        datak = datak.astype(np.float32).clip(0, 1)
+        assert 0 <= noise_level <= 1, f'noise level (sigma_range) should be within 0-1, but get {self.sigma_range}'
+        if noise_level > 0:
+            datak = datak + \
+                np.random.normal(0, noise_level, datak.shape).astype(np.float32)
+            datak = datak.clip(0, 1)
 
-        # return [C,H,W]
+        # return shape=[C,H,W], dtype=float32, range=[0,1]
         return datak.transpose(2, 0, 1), targetk.transpose(2, 0, 1), noise_level
 
     def __len__(self):
@@ -210,10 +214,13 @@ class ImagePairDataset_all2CPU(Dataset):
             noise_level = self.sigma_range
         else:
             noise_level = np.random.uniform(*self.sigma_range)
-        datak = datak + np.random.normal(0, noise_level, datak.shape)
-        datak = datak.astype(np.float32).clip(0, 1)
+        assert 0 <= noise_level <= 1, f'noise level (sigma_range) should be within 0-1, but get {self.sigma_range}'
+        if noise_level > 0:
+            datak = datak + \
+                np.random.normal(0, noise_level, datak.shape).astype(np.float32)
+            datak = datak.clip(0, 1)
 
-        # return [C,H,W]
+        # return shape=[C,H,W], dtype=float32, range=[0,1]
         return datak.transpose(2, 0, 1),  targetk.transpose(2, 0, 1), noise_level
 
     def __len__(self):
