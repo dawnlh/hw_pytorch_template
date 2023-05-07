@@ -60,13 +60,13 @@ def test_worker(gpus, config):
 
     # instantiate loss and metrics
     criterion = {}
-    if 'main_loss' in loaded_config.loss:
+    if 'main_loss' in loaded_config.losses:
         criterion['main_loss'] = instantiate(
             loaded_config.main_loss, is_func=True)
-    if 'input_denoise_loss' in loaded_config.loss:
+    if 'input_denoise_loss' in loaded_config.losses:
         criterion['input_denoise_loss'] = instantiate(
             loaded_config.input_denoise_loss, is_func=True)
-    if 'forward_conv_loss' in loaded_config.loss:
+    if 'forward_conv_loss' in loaded_config.losses:
         criterion['forward_conv_loss'] = instantiate(
             loaded_config.forward_conv_loss, is_func=True)
 

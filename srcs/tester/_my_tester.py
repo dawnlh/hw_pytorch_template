@@ -60,13 +60,13 @@ def test_worker(gpus, config):
 
     # instantiate loss and metrics
     criterion = {}
-    if 'main_loss' in loaded_config.loss:
+    if 'main_loss' in loaded_config.losses:
         criterion['main_loss'] = instantiate(
             loaded_config.main_loss, is_func=True)
-    if 'loss2' in loaded_config.loss:
+    if 'loss2' in loaded_config.losses:
         criterion['loss2'] = instantiate(
             loaded_config.loss2, is_func=True)
-    if 'loss3' in loaded_config.loss:
+    if 'loss3' in loaded_config.losses:
         criterion['loss3'] = instantiate(
             loaded_config.loss3, is_func=True)
 

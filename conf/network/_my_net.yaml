@@ -4,7 +4,7 @@ arch:
   _target_: srcs.model.my_model.my_arch
   n_in: 3
 
-loss: {'main_loss':1, 'loss2':0.5, 'loss3':0.5} # main_loss, loss2, loss3
+losses: {'main_loss':1, 'loss2':0.5, 'loss3':0.5} # main_loss, loss2, loss3
 main_loss:
   _target_: srcs.loss._pix_loss_func.weighted_loss
   loss_conf_dict: {'l1_loss':0.4, 'mse_loss':0.2, 'ssim_loss':0.2, 'tv_loss':0.2}
@@ -19,7 +19,7 @@ optimizer:
   lr: ${learning_rate}
   weight_decay: ${weight_decay}
   amsgrad: true
-  
+
 lr_scheduler:
   _target_: torch.optim.lr_scheduler.StepLR
   step_size: ${scheduler_step_size}

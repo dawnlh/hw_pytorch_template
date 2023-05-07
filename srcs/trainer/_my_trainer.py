@@ -35,7 +35,7 @@ class Trainer(BaseTrainer):
                     "Warning: test dataloader for final test is None, final test is omitted")
                 self.final_test = False
         self.input_denoise_epoch = input_denoise_epoch
-        self.losses = self.config['loss']
+        self.losses = self.config['losses']
         self.lr_scheduler = lr_scheduler
         self.limit_train_iters = config['trainer'].get(
             'limit_train_iters', len(self.data_loader))
@@ -380,12 +380,12 @@ def train_worker(config):
 
     # get function handles of loss and metrics
     criterion = {}
-    if 'main_loss' in config.loss:
+    if 'main_loss' in config.losses:
         criterion['main_loss'] = instantiate(config.main_loss, is_func=True)
-    if 'loss2' in config.loss:
+    if 'loss2' in config.losses:
         criterion['loss2'] = instantiate(
             config.input_denoise_loss, is_func=True)
-    if 'loss3' in config.loss:
+    if 'loss3' in config.losses:
         criterion['loss3'] = instantiate(
             config.forward_conv_loss, is_func=True)
 
