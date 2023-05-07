@@ -1,7 +1,9 @@
 import torch
-import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+from pytorch_msssim import SSIM, MS_SSIM  # pip install pytorch-msssim
+
 # ===========================
 # global loss info extract
 # ===========================
@@ -23,7 +25,9 @@ def add2loss(cls):
 class WeightedLoss(nn.Module):
     """
     weighted multi-loss
-    loss_conf_dict: {loss_type1: weight | [weight,args_dict], ...}
+    loss_conf_dict: {loss_type1: weight|[weight,{kwargs_dict_for_init}], ...}
+        eg: loss_conf_dict = {'CharbonnierLoss':0.5, 'EdgeLoss':0.5}
+        eg: loss_conf_dict = {'CharbonnierLoss':[0.5, {'eps':1e-3}], 'EdgeLoss':0.5}
     """
 
     def __init__(self, loss_conf_dict):
@@ -57,7 +61,7 @@ class WeightedLoss(nn.Module):
 
 @add2loss
 class CharbonnierLoss(nn.Module):
-    """Charbonnier Loss (L1)"""
+    """Charbonnier Loss"""
 
     def __init__(self, eps=1e-3):
         super(CharbonnierLoss, self).__init__()
@@ -67,6 +71,34 @@ class CharbonnierLoss(nn.Module):
         diff = output.to('cuda:0') - target.to('cuda:0')
         loss = torch.mean(torch.sqrt((diff * diff) + (self.eps*self.eps)))
         return loss
+
+
+@add2loss
+class L1Loss(nn.Module):
+    """Mean Square Error Loss (L2)"""
+
+    def __init__(self):
+        super(L1Loss, self).__init__()
+
+    def forward(self, output, target):
+        return F.l1_loss(output, target)
+
+
+@add2loss
+class MSELoss(nn.Module):
+    """Mean Square Error Loss (L2)"""
+
+    def __init__(self):
+        super(MSELoss, self).__init__()
+
+    def forward(self, output, target):
+        return F.mse_loss(output, target)
+
+
+@add2loss
+class SSIMLoss(SSIM):
+    """Structural Similarity Index Measure Loss"""
+    pass
 
 
 @add2loss
@@ -138,6 +170,7 @@ class PSNRLoss(nn.Module):
         assert len(pred.size()) == 4
 
         return self.loss_weight * self.scale * torch.log(((pred - target) ** 2).mean(dim=(1, 2, 3)) + 1e-8).mean()
+
 
 if __name__ == "__main__":
     import PerceptualLoss

@@ -101,15 +101,16 @@ class Trainer(BaseTrainer):
             output, data_denoise = self.model(data_noisy, kernel)
 
             # loss calc
-            loss = 0
+            main_loss = 0
             for level in range(self.n_levels):
                 scale = self.scales[level]
                 n, c, h, w = target.shape
                 hi = int(round(h * scale))
                 wi = int(round(w * scale))
                 sharp_level = F.interpolate(target, (hi, wi), mode='bilinear')
-                loss = loss + \
+                main_loss = main_loss + \
                     self.criterion['main_loss'](output[level], sharp_level)
+            loss = self.losses['main_loss']*main_loss
 
             # input denoise loss
             if 'input_denoise_loss' in self.losses:
