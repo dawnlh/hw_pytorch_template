@@ -70,7 +70,8 @@ def test_worker(gpus, config):
         criterion['loss3'] = instantiate(
             loaded_config.loss3, is_func=True)
 
-    metrics = [instantiate(met, is_func=True) for met in loaded_config.metrics]
+    # metrics = [instantiate(met, is_func=True) for met in loaded_config.metrics]
+    metrics = [instantiate(met) for met in config.metrics]
 
     # setup data_loader instances
     test_data_loader = instantiate(config.test_data_loader)

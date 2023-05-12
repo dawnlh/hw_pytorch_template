@@ -20,8 +20,12 @@ save_img: true      # save the reconstructed images
 
 ##### metrics
 metrics:
-  - _target_: srcs.metric._metric.calc_psnr
-  - _target_: srcs.metric._metric.calc_ssim
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: psnr
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: ssim
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: lpips
 
 ##### data & net config files
 defaults:

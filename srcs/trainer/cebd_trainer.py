@@ -84,7 +84,7 @@ class Trainer(BaseTrainer):
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():
-            getattr(self, f'{phase}_metrics').update(k, v)
+            getattr(self, f'{phase}_metrics').update(k, v.item()) # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(
@@ -331,7 +331,8 @@ def train_worker(config):
 
     # get function handles of loss and metrics
     criterion = instantiate(config.loss)
-    metrics = [instantiate(met, is_func=True) for met in config['metrics']]
+    # metrics = [instantiate(met, is_func=True) for met in config['metrics']]
+    metrics = [instantiate(met) for met in config['metrics']]
 
     # build optimizer, learning rate scheduler.
     optimizer = instantiate(config.optimizer, model.parameters())

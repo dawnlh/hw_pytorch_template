@@ -37,8 +37,10 @@ trainer:                    # trainer setting
 
 ##### metrics
 metrics:
-  - _target_: srcs.metric._metric.calc_psnr
-  - _target_: srcs.metric._metric.calc_ssim
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: psnr
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: ssim
 
 ##### data & net config files
 defaults:

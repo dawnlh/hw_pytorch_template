@@ -181,7 +181,7 @@ class BaseTrainer(metaclass=ABCMeta):
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():
-            getattr(self, f'{phase}_metrics').update(k, v)
+            getattr(self, f'{phase}_metrics').update(k, v.item()) # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(

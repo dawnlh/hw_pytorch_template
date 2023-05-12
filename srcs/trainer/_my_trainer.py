@@ -78,7 +78,7 @@ class Trainer(BaseTrainer):
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():
-            getattr(self, f'{phase}_metrics').update(k, v)
+            getattr(self, f'{phase}_metrics').update(k, v.item()) # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(
@@ -101,15 +101,16 @@ class Trainer(BaseTrainer):
             output, data_denoise = self.model(data_noisy, kernel)
 
             # main loss calc
-            loss = 0
+            main_loss = 0
             for level in range(self.n_levels):
                 scale = self.scales[level]
                 n, c, h, w = target.shape
                 hi = int(round(h * scale))
                 wi = int(round(w * scale))
                 sharp_level = F.interpolate(target, (hi, wi), mode='bilinear')
-                loss = loss + \
+                main_loss = main_loss + \
                     self.criterion['main_loss'](output[level], sharp_level)
+            loss = self.losses['main_loss']*main_loss
 
             # loss2 calc
             if 'loss2' in self.losses:
@@ -389,7 +390,8 @@ def train_worker(config):
         criterion['loss3'] = instantiate(
             config.forward_conv_loss, is_func=True)
 
-    metrics = [instantiate(met, is_func=True) for met in config['metrics']]
+    # metrics = [instantiate(met, is_func=True) for met in config['metrics']]
+    metrics = [instantiate(met) for met in config['metrics']]
 
     # build optimizer, learning rate scheduler.
     optimizer = instantiate(config.optimizer, model.parameters())

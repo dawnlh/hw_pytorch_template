@@ -9,10 +9,11 @@ conda:
 pip:
     hydra-core>=1.0.3
     hydra_colorlog
-    tqdm
+    tqdmp
     ptflops
     opencv-python
     pytorch-msssim
     kornia
     einops
     pytorch-gradual-warmup-lr
+    import pyiqa
