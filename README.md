@@ -1,35 +1,9 @@
 # PyTorch Template Project
 Simple project base template for PyTorch deep Learning project.
 
-<!-- TOC depthFrom:1 depthTo:6 orderedList:false -->
+<!-- TOC depthfrom:undefined depthto:undefined orderedlist:undefined -->
 
-- [PyTorch Template Project](#pytorch-template-project)
-  - [Installation](#installation)
-    - [Requirements](#requirements)
-    - [Features](#features)
-    - [Folder Structure](#folder-structure)
-  - [Usage](#usage)
-    - [Hierarchical configurations with Hydra](#hierarchical-configurations-with-hydra)
-    - [Using config files](#using-config-files)
-    - [Checkpoints](#checkpoints)
-    - [Resuming from checkpoints](#resuming-from-checkpoints)
-    - [Using Multiple GPU](#using-multiple-gpu)
-  - [Customization](#customization)
-    - [Data Loader](#data-loader)
-    - [Trainer](#trainer)
-    - [Model](#model)
-    - [Loss](#loss)
-    - [Metrics](#metrics)
-    - [Additional logging](#additional-logging)
-    - [Testing](#testing)
-    - [Validation data](#validation-data)
-    - [Checkpoints](#checkpoints-1)
-    - [Tensorboard Visualization](#tensorboard-visualization)
-  - [Contribution](#contribution)
-  - [TODOs](#todos)
-  - [License](#license)
-  - [Note](#note)
-  - [Reference](#reference)
+
 
 <!-- /TOC -->
 
@@ -355,6 +329,9 @@ If you need more visualizations, use `add_scalar('tag', data)`, `add_image('tag'
   - info: UserWarning: semaphore_tracker: There appear to be 26 leaked semaphores to clean up at shutdown
   - solution: run `export PYTHONWARNINGS='ignore:semaphore_tracker:UserWarning'` to ignore this warning
 
+### More functions
+- model information: params, MACs, inference time, see`/srcs/utils/utils_eval_zzh.py`
+
 
 ## Contribution
 Feel free to contribute any kind of function or enhancement, here the coding style follows PEP8
@@ -362,12 +339,18 @@ Feel free to contribute any kind of function or enhancement, here the coding sty
 Code should pass the [Flake8](http://flake8.pycqa.org/en/latest/) check before committing.
 
 ## TODOs
+- [ ] optimize the docs
+- [ ] DDP support
+- [ ] optimizer dir structure: add a new git branch `project` and move the project example there to make the template concise
+- [ ] verification: fix bugs, refactor codes and enable success running
 
 ## License
 This project is licensed under the MIT License. See  LICENSE for more details
 
 ## Note
 - The performance index (like ssim/psnr) of training seems always lower than that of validation. This is because the training performance index is averaged among all the training steps in one epoch, while that of the validation is just calculated after the last training step.
+
+
 
 
 ## Reference

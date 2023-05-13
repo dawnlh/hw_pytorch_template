@@ -50,7 +50,7 @@ class BaseTrainer(metaclass=ABCMeta):
             'train', 'valid'), monitoring=self.monitor)
 
         self.saving_top_k = cfg_trainer.get('saving_top_k', -1)
-        self.landmark_list = cfg_trainer.get('landmark_list', [])
+        self.milestone_ckp = cfg_trainer.get('milestone_ckp', [])
         self.early_stop = cfg_trainer.get('early_stop', inf)
         if self.early_stop is None:
             self.early_stop = inf
@@ -149,7 +149,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
                 using_topk_save = self.saving_top_k > 0
                 self._save_checkpoint(
-                    epoch, save_best=is_best, save_latest=using_topk_save, landmark_list=self.landmark_list)
+                    epoch, save_best=is_best, save_latest=using_topk_save, milestone_ckp=self.milestone_ckp)
                 # keep top-k checkpoints only, using monitoring metrics
                 if using_topk_save:
                     self.ep_metrics.keep_topk_checkpt(
@@ -215,7 +215,7 @@ class BaseTrainer(metaclass=ABCMeta):
         # self._save_checkpoint(
         #     ep, save_best=is_best, save_latest=using_topk_save)
 
-    def _save_checkpoint(self, epoch, save_best=False, save_latest=True, landmark_list=[]):
+    def _save_checkpoint(self, epoch, save_best=False, save_latest=True, milestone_ckp=[]):
         """
         Saving checkpoints
 
@@ -223,7 +223,7 @@ class BaseTrainer(metaclass=ABCMeta):
         :param log: logging information of the epoch
         :param save_best: if True, save a copy of current checkpoint file as 'model_best.pth'
         :param save_latest: if True, save a copy of current checkpoint file as 'model_latest.pth'
-        :param landmark_list: save and keep current checkpoints if current epoch is in this landmark_list
+        :param milestone_ckp: save and keep current checkpoints if current epoch is in this milestone_ckp
         """
         arch = type(self.model).__name__
         state = {
@@ -247,12 +247,12 @@ class BaseTrainer(metaclass=ABCMeta):
             copyfile(filename, best_path)
             self.logger.info(
                 f"※ Renewing best checkpoint!")
-        if landmark_list and epoch in landmark_list:
+        if milestone_ckp and epoch in milestone_ckp:
             landmark_path = str(
                 self.checkpt_dir / f'model_epoch{epoch}.pth')
             copyfile(filename, landmark_path)
             self.logger.info(
-                f"※ Saving landmark checkpoint at epoch {epoch}!")
+                f"※ Saving milestone checkpoint at epoch {epoch}!")
 
     def _resume_checkpoint(self, resume_path, resume_conf=['epoch', 'optimizer']):
         """

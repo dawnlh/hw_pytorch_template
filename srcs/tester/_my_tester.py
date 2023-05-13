@@ -9,8 +9,7 @@ from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_eval_zzh import gpu_inference_time_est
-from ptflops import get_model_complexity_info
+from srcs.utils.utils_eval_zzh import gpu_inference_time, model_complexity
 
 
 def testing(gpus, config):
@@ -38,17 +37,6 @@ def test_worker(gpus, config):
     # instantiate model
     model = instantiate(loaded_config.arch)
     logger.info(model)
-
-    # calc MACs & Param. Num
-    inputs_shape = [256, 256]
-    macs, params = get_model_complexity_info(
-        model=model, input_res=(3, *inputs_shape), verbose=False, print_per_layer_stat=False)
-    logger.info(
-        '='*40+'\n{:<30} {}'.format('Inputs resolution: ', inputs_shape))
-    logger.info(
-        '{:<30} {}'.format('Computational complexity: ', macs))
-    logger.info('{:<30}  {}\n'.format(
-        'Number of parameters: ', params)+'='*40)
 
     # DP
     if len(gpus) > 1:
@@ -79,11 +67,11 @@ def test_worker(gpus, config):
     # test
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     log = test(test_data_loader, model,
-               device, criterion, metrics, config)
+               device, criterion, metrics, config, logger)
     logger.info(log)
 
 
-def test(test_data_loader, model,  device, criterion, metrics, config):
+def test(test_data_loader, model,  device, criterion, metrics, config, logger=None):
     '''
     test step
     '''
@@ -97,7 +85,14 @@ def test(test_data_loader, model,  device, criterion, metrics, config):
 
     # inference time test
     input_shape = (1, 3, 256, 256)  # test image size
-    gpu_inference_time_est(model, input_shape)
+    gpu_inference_time(model, input_shape)
+    # calc MACs & Param. Num
+    # def prepare_input(resolution):
+    #     data_noisy = torch.FloatTensor(1, 3, *resolution[0])
+    #     kernel = torch.FloatTensor(1, 1, *resolution[1])
+    #     return dict(data_noisy=data_noisy, kernel=kernel)
+    model_complexity(model=model, input_shape=input_shape,
+                     input_constructor=None, logger=logger)
 
     # eval
     model.eval()

@@ -11,7 +11,7 @@ from srcs.logger import BatchMetrics
 import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
 from srcs.utils.utils_deblur_zzh import pad4conv
-from ptflops import get_model_complexity_info
+from srcs.utils.utils_eval_zzh import gpu_inference_time, model_complexity
 # ======================================
 # Trainer: modify '_train_epoch'
 # ======================================
@@ -366,18 +366,13 @@ def train_worker(config):
     model = instantiate(config.arch)
     logger.info(model)
 
-    # calc trainable params and MACs
-    def prepare_input(resolution):
-        data_noisy = torch.FloatTensor(1, 3, *resolution[0])
-        kernel = torch.FloatTensor(1, 1, *resolution[1])
-        return dict(data_noisy=data_noisy, kernel=kernel)
+    # calc MACs & Param. Num
+    # def prepare_input(resolution):
+    #     data_noisy = torch.FloatTensor(1, 3, *resolution[0])
+    #     kernel = torch.FloatTensor(1, 1, *resolution[1])
+    #     return dict(data_noisy=data_noisy, kernel=kernel)
+    model_complexity(model=model, input_shape=(1, 3, 256, 256), input_constructor=None, logger=logger)
 
-    macs, params = get_model_complexity_info(
-        model=model, input_res=[(config.patch_size, config.patch_size), (64, 64)], input_constructor=prepare_input, verbose=False, print_per_layer_stat=False)
-    logger.info(
-        '='*40+'\n{:<30}  {:<8}'.format('Computational complexity: ', macs))
-    logger.info('{:<30}  {:<8}\n'.format(
-        'Number of parameters: ', params)+'='*40)
 
     # get function handles of loss and metrics
     criterion = {}

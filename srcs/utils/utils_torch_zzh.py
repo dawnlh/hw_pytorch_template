@@ -7,20 +7,8 @@ from torch.nn.parameter import Parameter
 from scipy.signal import convolve2d, correlate2d
 
 # ===============
-# model info
+# model info: refer to `utils_eval_zzh.py`
 # ===============
-
-# --------------------------------------------
-# get parameter
-# --------------------------------------------
-
-
-def get_parameter_number(net):
-    total_num = sum(np.prod(p.size()) for p in net.parameters())
-    trainable_num = sum(np.prod(p.size())
-                        for p in net.parameters() if p.requires_grad)
-    print('Total: ', total_num)
-    print('Trainable: ', trainable_num)
 
 # ===============
 # basic operation

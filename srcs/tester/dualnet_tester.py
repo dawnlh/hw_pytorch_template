@@ -8,7 +8,7 @@ from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_eval_zzh import gpu_inference_time_est
+from srcs.utils.utils_eval_zzh import gpu_inference_time
 
 def testing(gpus, config):
     test_worker(gpus, config)

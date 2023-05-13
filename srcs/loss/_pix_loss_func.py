@@ -72,7 +72,7 @@ def l1_loss(output, target):
 
 @add2loss
 def ssim_loss(output, target):
-    # Note: data range = 1
+    # data range = 1
     ssim_loss = 1 - ssim(output, target,
                          data_range=1, size_average=True)
     return ssim_loss
@@ -80,7 +80,7 @@ def ssim_loss(output, target):
 
 @add2loss
 def msssim_loss(output, target):
-    # Note: data range = 1
+    # data range = 1
     ms_ssim_loss = 1 - ms_ssim(output, target,
                                data_range=1, size_average=True)
     return ms_ssim_loss

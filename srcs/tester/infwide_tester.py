@@ -9,7 +9,7 @@ from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 from srcs.utils._util import instantiate
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_eval_zzh import gpu_inference_time_est
+from srcs.utils.utils_eval_zzh import gpu_inference_time
 from ptflops import get_model_complexity_info
 
 def testing(gpus, config):
@@ -40,9 +40,15 @@ def test_worker(gpus, config):
     logger.info(model)
 
     # calc MACs & Param. Num
-    inputs_shape = [256, 256]
+    inputs_shape = (3, 256, 256)
+
+    def input_constructor(in_shape):
+        # define a `input_constructor` function to customized the inputs for ptflops
+        # the
+        input_kwargs = {'frames': torch.randn(in_shape, device="cuda:0")}
+        return input_kwargs
     macs, params = get_model_complexity_info(
-        model=model, input_res=(3, *inputs_shape), verbose=False, print_per_layer_stat=False)
+        model=model, input_res=inputs_shape, input_constructor=input_constructor, verbose=False, print_per_layer_stat=False)
     logger.info(
         '='*40+'\n{:<30} {}'.format('Inputs resolution: ', inputs_shape))
     logger.info(
@@ -98,7 +104,7 @@ def test(test_data_loader, model,  device, criterion, metrics, config):
 
     # inference time test
     input_shape = (1, 3, 256, 256)  # test image size
-    gpu_inference_time_est(model, input_shape)
+    gpu_inference_time(model, input_shape)
 
     # eval
     model.eval()
