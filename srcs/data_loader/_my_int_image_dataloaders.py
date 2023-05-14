@@ -151,7 +151,7 @@ class ImageDataset_all2CPU(Dataset):
         img_paths, self.img_num, skip_num = get_file_path(data_dir, ext)
 
         # load images
-        for img_path in tqdm(img_paths, desc='Loading dataset to CPU'):
+        for img_path in tqdm(img_paths, desc='⏳ Loading dataset to CPU'):
             img = cv2.imread(img_path)
             assert img is not None, 'Image-%s read falied' % img_path
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

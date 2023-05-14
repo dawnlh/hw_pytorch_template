@@ -140,11 +140,11 @@ class BaseTrainer(metaclass=ABCMeta):
                                      "Training stops.".format(self.early_stop))
                     if self.final_test:
                         self.logger.info(
-                            '☝ Finish Training! ✌ \n\n ===> Start Testing(Using Latest Checkpoint): \n')
+                            '🎉🎉 Finish Training! 🎉🎉 \n\n ===> Start Testing(Using Latest Checkpoint): \n')
                         self._test_epoch()
                     else:
                         self.logger.info(
-                            '☝ Finish Training! ✌\n\n')
+                            '🎉🎉 Finish Training! 🎉🎉\n\n')
                     exit(1)
 
                 using_topk_save = self.saving_top_k > 0
@@ -159,17 +159,17 @@ class BaseTrainer(metaclass=ABCMeta):
 
             epoch_end = time.time()
             self.logger.info(
-                f'✈ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_end-epoch_start:.2f}s, Total Time Cost: {(epoch_end-train_start)/3600:.2f}h\n')
+                f'🕒 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_end-epoch_start:.2f}s, Total Time Cost: {(epoch_end-train_start)/3600:.2f}h\n')
             self.logger.info('=' * max_line_width)
             if self.config.n_gpu > 1:
                 dist.barrier()
         if self.final_test:
             self.logger.info(
-                '☝ Finish Training! ✌ \n\n ===> Start Testing(Using Latest Checkpoint): \n')
+                '🎉🎉 Finish Training! 🎉🎉 \n\n ===> Start Testing(Using Latest Checkpoint): \n')
             self._test_epoch()
         else:
             self.logger.info(
-                '☝ Finish Training! ✌\n\n')
+                '🎉🎉 Finish Training! 🎉🎉\n\n')
 
     def _after_iter(self, epoch, batch_idx, phase, loss, metrics, image_tensors: dict):
         # TBD
@@ -208,7 +208,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
         # divider ===
         self.logger.info(
-            f'✈ {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_time:.2f}s, Total Time Cost: {total_time/3600:.2f}h\n')
+            f'🕒 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_time:.2f}s, Total Time Cost: {total_time/3600:.2f}h\n')
         self.logger.info('=' * max_line_width)
 
         # saving checkpoint
@@ -238,7 +238,7 @@ class BaseTrainer(metaclass=ABCMeta):
         filename = str(self.checkpt_dir / f'checkpoint-epoch{epoch}.pth')
         torch.save(state, filename)
         self.logger.info(
-            f"Model checkpoint saved at: \n    {os.getcwd()}/{filename}")
+            f"💾 Model checkpoint saved at: \n    {os.getcwd()}/{filename}")
         if save_latest:
             latest_path = str(self.checkpt_dir / 'model_latest.pth')
             copyfile(filename, latest_path)
@@ -246,13 +246,13 @@ class BaseTrainer(metaclass=ABCMeta):
             best_path = str(self.checkpt_dir / 'model_best.pth')
             copyfile(filename, best_path)
             self.logger.info(
-                f"※ Renewing best checkpoint!")
+                f"🔄 Renewing best checkpoint!")
         if milestone_ckp and epoch in milestone_ckp:
             landmark_path = str(
                 self.checkpt_dir / f'model_epoch{epoch}.pth')
             copyfile(filename, landmark_path)
             self.logger.info(
-                f"※ Saving milestone checkpoint at epoch {epoch}!")
+                f"💡 Saving milestone checkpoint at epoch {epoch}!")
 
     def _resume_checkpoint(self, resume_path, resume_conf=['epoch', 'optimizer']):
         """
@@ -263,12 +263,12 @@ class BaseTrainer(metaclass=ABCMeta):
         """
 
         resume_path = opj(os.getcwd(), self.config['resume'])
-        self.logger.info(f"Loading checkpoint: {resume_path} ...")
+        self.logger.info(f"💡 Loading checkpoint: {resume_path} ...")
         checkpoint = torch.load(resume_path)
 
         # load architecture params from checkpoint.
         if checkpoint['config'].get('arch', None) != self.config.get('arch', None):
-            self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
+            self.logger.warning("⚠️ Warning: Architecture configuration given in config file is different from that of "
                                 "checkpoint. This may yield an exception while state_dict is being loaded.")
         self.model.load_state_dict(checkpoint['state_dict'])
 
@@ -276,14 +276,14 @@ class BaseTrainer(metaclass=ABCMeta):
         if 'optimizer' in resume_conf:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
             self.logger.info(
-                f'Optimizer resumed from the loaded checkpoint!')
+                f'📣 Optimizer resumed from the loaded checkpoint!')
 
         # epoch start point
         if 'epoch' in resume_conf:
             self.start_epoch = checkpoint['epoch'] + 1
             self.logger.info(
-                f"Start training model from resumed epoch ({checkpoint['epoch']}).")
+                f"▶️ Start training model from resumed epoch ({checkpoint['epoch']}).")
         else:
             self.start_epoch = 1
             self.logger.info(
-                f"Start training model from restarted epoch (1).")
+                f"▶️ Start training model from restarted epoch (1).")

@@ -260,7 +260,7 @@ class BaseTrainer2(metaclass=ABCMeta):
                        f'checkpoint-{model_id}-epoch{epoch}.pth')
         torch.save(state, filename)
         self.logger.info(
-            f"Model checkpoint saved at: \n    {os.getcwd()}/{filename}")
+            f"💾 Model checkpoint saved at: \n    {os.getcwd()}/{filename}")
 
         # remove old ckp
         if keep_latest_k > 1 and epoch > keep_latest_k:
@@ -285,14 +285,14 @@ class BaseTrainer2(metaclass=ABCMeta):
         resume_path = opj(os.getcwd(), self.config['resume_'+model_id])
 
         self.logger.info(
-            f"Loading checkpoint for model_{model_id}: {resume_path} ...")
+            f"💡 Loading checkpoint for model_{model_id}: {resume_path} ...")
         checkpoint = torch.load(resume_path)
         self.logger.info(
             f"model_{model_id} checkpoint (epoch {checkpoint['epoch']}) loaded!")
 
         # load architecture params from checkpoint.
         if checkpoint['config'].get('arch_'+model_id, None) != self.config.get('arch_'+model_id, None):
-            self.logger.warning("Warning: Architecture configuration given in config file is different from that of "
+            self.logger.warning("⚠️ Warning: Architecture configuration given in config file is different from that of "
                                 "checkpoint. This may yield an exception while state_dict is being loaded.")
         getattr(self, f"model_{model_id}").load_state_dict(
             checkpoint['state_dict'])
@@ -302,17 +302,17 @@ class BaseTrainer2(metaclass=ABCMeta):
             getattr(self, f"optimizer_{model_id}").load_state_dict(
                 checkpoint['optimizer'])
             self.logger.info(
-                f'optimizer_{model_id} resumed from the loaded checkpoint!')
+                f'📣 optimizer_{model_id} resumed from the loaded checkpoint!')
 
         # epoch start point
         if 'epoch' in resume_conf:
             setattr(self, 'start_epoch_'+model_id, checkpoint['epoch'] + 1)
             self.logger.info(
-                f"Start training model_{model_id} from resumed epoch ({checkpoint['epoch']}).")
+                f"▶️ Start training model_{model_id} from resumed epoch ({checkpoint['epoch']}).")
         else:
             setattr(self, 'start_epoch_'+model_id, 1)
             self.logger.info(
-                f"Start training model_{model_id} from restarted epoch (1).")
+                f"▶️ Start training model_{model_id} from restarted epoch (1).")
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'

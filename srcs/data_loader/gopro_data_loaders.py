@@ -169,7 +169,7 @@ class GoproDataset_all2CPU(Dataset):
         # load images
         self.blur = []
         self.sharp = []
-        for img_path in tqdm(self.blur_list, desc='Loading blur images to CPU'):
+        for img_path in tqdm(self.blur_list, desc='⏳ Loading blur images to CPU'):
             if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % img_path)
                 continue
@@ -178,7 +178,7 @@ class GoproDataset_all2CPU(Dataset):
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             self.blur.append(img)
 
-        for img_path in tqdm(self.sharp_list, desc='Loading sharp images to CPU'):
+        for img_path in tqdm(self.sharp_list, desc='⏳ Loading sharp images to CPU'):
             if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % img_path)
                 continue

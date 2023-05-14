@@ -227,7 +227,7 @@ class BlurImgDataset_all2CPU(Dataset):
                 img_paths.extend(img_paths_n)
         self.img_paths = img_paths
 
-        for img_path in tqdm(self.img_paths, desc='Loading image to CPU'):
+        for img_path in tqdm(self.img_paths, desc='⏳ Loading image to CPU'):
 
             if img_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file')
@@ -244,7 +244,7 @@ class BlurImgDataset_all2CPU(Dataset):
             psf_names = sorted(os.listdir(load_psf_dir))
             self.psf_num = len(psf_names)
 
-            for psf_name in tqdm(psf_names, desc='Loading psf to CPU'):
+            for psf_name in tqdm(psf_names, desc='⏳ Loading psf to CPU'):
                 psf_path = opj(load_psf_dir, psf_name)
                 if psf_path.split('.')[-1] not in ['jpg', 'png', 'tif', 'bmp']:
                     print('Skip a non-image file')

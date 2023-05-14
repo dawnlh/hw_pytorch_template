@@ -202,7 +202,7 @@ class VideoFrame_Dataset_all2CPU(Dataset):
                 [opj(vid_path, img_name) for img_name in img_names])
 
         # img_shape = None
-        for img_path in tqdm(self.img_paths, desc='Loading dataset to CPU'):
+        for img_path in tqdm(self.img_paths, desc='⏳ Loading dataset to CPU'):
             img = cv2.imread(img_path)
             assert img is not None, 'Image read falied'
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -272,7 +272,7 @@ class Blurimg_RealExp_Dataset_all2CPU:
             raise ValueError('data_dir should be a str')
 
         # load blurry image
-        for img_path in tqdm(self.blur_paths, desc='Loading image to CPU'):
+        for img_path in tqdm(self.blur_paths, desc='⏳ Loading image to CPU'):
             img = cv2.imread(img_path)
             assert img is not None, 'Image read falied'
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

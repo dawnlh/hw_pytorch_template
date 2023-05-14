@@ -226,7 +226,7 @@ class BlurImgDataset_all2CPU(Dataset):
                 img_paths.extend(img_paths_n)
         self.img_paths = img_paths
 
-        for img_path in tqdm(self.img_paths, desc='Loading image to CPU'):
+        for img_path in tqdm(self.img_paths, desc='⏳ Loading image to CPU'):
 
             if img_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % (img_path))
@@ -244,7 +244,7 @@ class BlurImgDataset_all2CPU(Dataset):
             psf_names = sorted(os.listdir(load_psf_dir))
             self.psf_num = len(psf_names)
 
-            for psf_name in tqdm(psf_names, desc='Loading psf to CPU'):
+            for psf_name in tqdm(psf_names, desc='⏳ Loading psf to CPU'):
                 psf_path = opj(load_psf_dir, psf_name)
                 if psf_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
                     print('Skip a non-image file: %s' % psf_path)
@@ -371,7 +371,7 @@ class BlurImgDataset_Exp_all2CPU(Dataset):
         img_paths = [opj(blur_img_dir, img_name) for img_name in img_names]
         self.img_num = len(img_paths)
 
-        for img_path in tqdm(img_paths, desc='Loading image to CPU'):
+        for img_path in tqdm(img_paths, desc='⏳ Loading image to CPU'):
 
             if img_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % (img_path))
@@ -388,7 +388,7 @@ class BlurImgDataset_Exp_all2CPU(Dataset):
             gt_paths = [opj(gt_dir, gt_name) for gt_name in gt_names]
             self.gt_num = len(gt_paths)
 
-            for gt_path in tqdm(gt_paths, desc='Loading gt to CPU'):
+            for gt_path in tqdm(gt_paths, desc='⏳ Loading gt to CPU'):
                 if gt_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
                     print('Skip a non-image file: %s' % (gt_path))
                     continue
@@ -403,7 +403,7 @@ class BlurImgDataset_Exp_all2CPU(Dataset):
         psf_paths = [opj(psf_dir, psf_name) for psf_name in psf_names]
         self.psf_num = len(psf_names)
 
-        for psf_path in tqdm(psf_paths, desc='Loading psf to CPU'):
+        for psf_path in tqdm(psf_paths, desc='⏳ Loading psf to CPU'):
             if psf_path.split('.')[-1].lower() not in ['jpg', 'jpeg', 'png', 'tif', 'bmp']:
                 print('Skip a non-image file: %s' % psf_path)
                 continue

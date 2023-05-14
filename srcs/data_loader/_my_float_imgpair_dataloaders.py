@@ -172,7 +172,7 @@ class ImagePairDataset_all2CPU(Dataset):
         self.dataset_num = target_num
 
         # load images
-        for idx in tqdm(range(target_num), desc='Loading dataset to CPU'):
+        for idx in tqdm(range(target_num), desc='⏳ Loading dataset to CPU'):
             datak = cv2.imread(data_paths[idx])
             assert datak is not None, f'Image-{data_paths[idx]} read falied'
             datak = cv2.cvtColor(datak, cv2.COLOR_BGR2RGB)
