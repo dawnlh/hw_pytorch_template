@@ -64,11 +64,11 @@ class BaseTrainer(metaclass=ABCMeta):
         if self.final_test:
             self.final_test_dir = Path(self.config.final_test_dir)
         if is_master():
-            self.checkpt_dir.mkdir()
+            self.checkpt_dir.mkdir(exist_ok=True)
             # setup visualization writer instance
-            log_dir.mkdir()
+            log_dir.mkdir(exist_ok=True)
             if self.final_test:
-                self.final_test_dir.mkdir()
+                self.final_test_dir.mkdir(exist_ok=True)
             self.writer = TensorboardWriter(
                 log_dir, cfg_trainer['tensorboard'])
         else:
@@ -111,6 +111,7 @@ class BaseTrainer(metaclass=ABCMeta):
         """
         Full training logic
         """
+        self.logger.info(f"\n⏩⏩ Start Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ⏩⏩\n")
         not_improved_count = 0
         train_start = time.time()
         for epoch in range(self.start_epoch, self.epochs + 1):
@@ -140,11 +141,11 @@ class BaseTrainer(metaclass=ABCMeta):
                                      "Training stops.".format(self.early_stop))
                     if self.final_test:
                         self.logger.info(
-                            '🎉🎉 Finish Training! 🎉🎉 \n\n ===> Start Testing(Using Latest Checkpoint): \n')
+                            f"\n🎉🎉 Finish Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 🎉🎉\n\n == = > Start Testing(Using Latest Checkpoint): \n")
                         self._test_epoch()
                     else:
                         self.logger.info(
-                            '🎉🎉 Finish Training! 🎉🎉\n\n')
+                            f"\n🎉🎉 Finish Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}🎉🎉\n\n")
                     exit(1)
 
                 using_topk_save = self.saving_top_k > 0
@@ -165,11 +166,11 @@ class BaseTrainer(metaclass=ABCMeta):
                 dist.barrier()
         if self.final_test:
             self.logger.info(
-                '🎉🎉 Finish Training! 🎉🎉 \n\n ===> Start Testing(Using Latest Checkpoint): \n')
+                f"\n🎉🎉 Finish Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} 🎉🎉\n\n == = > Start Testing(Using Latest Checkpoint): \n")
             self._test_epoch()
         else:
             self.logger.info(
-                '🎉🎉 Finish Training! 🎉🎉\n\n')
+                f"\n🎉🎉 Finish Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}🎉🎉\n\n")
 
     def _after_iter(self, epoch, batch_idx, phase, loss, metrics, image_tensors: dict):
         # TBD
@@ -252,7 +253,7 @@ class BaseTrainer(metaclass=ABCMeta):
                 self.checkpt_dir / f'model_epoch{epoch}.pth')
             copyfile(filename, landmark_path)
             self.logger.info(
-                f"💡 Saving milestone checkpoint at epoch {epoch}!")
+                f"🔖 Saving milestone checkpoint at epoch {epoch}!")
 
     def _resume_checkpoint(self, resume_path, resume_conf=['epoch', 'optimizer']):
         """
@@ -263,7 +264,7 @@ class BaseTrainer(metaclass=ABCMeta):
         """
 
         resume_path = opj(os.getcwd(), self.config['resume'])
-        self.logger.info(f"💡 Loading checkpoint: {resume_path} ...")
+        self.logger.info(f"📥 Loading checkpoint: {resume_path} ...")
         checkpoint = torch.load(resume_path)
 
         # load architecture params from checkpoint.
@@ -282,8 +283,8 @@ class BaseTrainer(metaclass=ABCMeta):
         if 'epoch' in resume_conf:
             self.start_epoch = checkpoint['epoch'] + 1
             self.logger.info(
-                f"▶️ Start training model from resumed epoch ({checkpoint['epoch']}).")
+                f"📣 Epoch index resumed to epoch ({checkpoint['epoch']}).")
         else:
             self.start_epoch = 1
             self.logger.info(
-                f"▶️ Start training model from restarted epoch (1).")
+                f"📣 Epoch index renumbered from epoch (1).")

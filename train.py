@@ -30,9 +30,9 @@ def main(config):
     else:
         gpus = config.gpus
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpus))
-    n_gpu = len(gpus)
-    assert n_gpu <= torch.cuda.device_count(
-    ), 'Can\'t find %d GPU device on this machine.' % (n_gpu)
+
+    assert len(gpus) <= torch.cuda.device_count(
+    ), f'There are {torch.cuda.device_count()} GPUs on this machine, but you assigned $gpus={gpus}.'
 
     # resume
     if config.resume is not None:

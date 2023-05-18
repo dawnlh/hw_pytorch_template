@@ -20,8 +20,7 @@ def test_worker(gpus, config):
 
     # logger & dir setting
     logger = logging.getLogger('test')
-    if not os.path.exists(config.outputs_dir):
-        os.makedirs(config.outputs_dir)
+    os.makedirs(config.outputs_dir,exist_ok=True)
 
     # prepare model & checkpoint for testing
     ## load checkpoint
@@ -106,7 +105,7 @@ def test(model_a, model_b, metrics_a, metrics_b,
 
     # test
     with torch.no_grad():
-        for i, (target, data, kernel, sigma) in enumerate(tqdm(data_loader, desc='Testing')):
+        for i, (target, data, kernel, sigma) in enumerate(tqdm(data_loader, desc='⏳ Testing')):
             data, target, kernel = data.to(
                 device), target.to(device), kernel.to(device)
             # timer start

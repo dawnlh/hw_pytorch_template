@@ -351,8 +351,9 @@ This project is licensed under the MIT License. See  LICENSE for more details
 - The performance index (like ssim/psnr) of training seems always lower than that of validation. This is because the training performance index is averaged among all the training steps in one epoch, while that of the validation is just calculated after the last training step.
 
 ## Misc
-- emoji used: 💡 tips/notes, 📣 announce, ⏩ start, 💾 save, 🔄 refresh, 🕒 time, 💾 save, ⚠️ warning, ⏳ loading
-
+- emoji used:
+  - info: 💡 tips/notes, 📣/💬 announce, ⚠️ warning, 🕒 time, 🔖/📌 tag
+  - action: ⏩/▶️ start, ⏸/⏯/⏹ stop, 🔄 refresh, 💾 save, ⏳ loading/waiting, 📤 upload/sent, 📥 download/receive
 
 ## Reference
 - https://github.com/SunQpark/pytorch-template

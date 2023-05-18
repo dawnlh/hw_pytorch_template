@@ -23,6 +23,9 @@ from os.path import join as opj
 #     |  ├─ frame2
 #     |  ├─ ...
 #     ├─ ...
+# output data:
+#   sharp_img: shape=[C,H,W], dtype=float32, range=[0,1] | vid: shape=[frame_n, C,H,W], dtype=float32, range=[0,1]
+#   coded_blur: shape=[C,H,W], dtype=float32, range=[0,1]
 # =================
 
 # =================
@@ -43,14 +46,14 @@ def input_data_gen(frames, ce_code, noise_level=0):
     _ce_code = ce_code[:, None, None, None]
     _ce_code = np.tile(_ce_code, frame_sz[1:])
     # print(code.shape)
-    coded_meas = np.sum(_ce_code*frames, axis=0)/len(ce_code)
+    coded_blur = np.sum(_ce_code*frames, axis=0)/len(ce_code)
 
     # add Gaussian noise
     if noise_level>0:
-        coded_meas = coded_meas + \
-            np.random.normal(0, noise_level, coded_meas.shape).astype(np.float32)
+        coded_blur = coded_blur + \
+            np.random.normal(0, noise_level, coded_blur.shape).astype(np.float32)
 
-    return coded_meas.clip(0, 1)
+    return coded_blur.clip(0, 1)
 
 
 def init_network_input(coded_blur_img, ce_code):
@@ -172,7 +175,7 @@ class VidBlur_Dataset(Dataset):
 
             vid.append(img_crop)
 
-        vid = np.array(vid, dtype=np.float32)/255  # [vid_num, h, w, c]
+        vid = np.array(vid, dtype=np.float32)/255  # normalized to 0-1, [vid_num, h, w, c]
 
         # data augment
         if self.tform_op:
@@ -185,12 +188,13 @@ class VidBlur_Dataset(Dataset):
             noise_level = np.random.uniform(*self.sigma_range)
 
         # calc coded measurement
-        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
+        coded_blur = input_data_gen(vid, self.ce_code, noise_level)
 
         # calc middle video frame
         sharp_img = vid[self.ce_code.shape[0]//2, ...]
 
-        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return sharp_img.transpose(2, 0, 1), coded_blur.transpose(2, 0, 1)
+        # return vid.transpose(0, 3, 1, 2), coded_blur.transpose(2, 0, 1)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -276,17 +280,18 @@ class VidBlur_Dataset_all2CPU(Dataset):
         else:
             noise_level = np.random.uniform(*self.sigma_range)
 
-        coded_meas = input_data_gen(vid, self.ce_code, noise_level)
+        coded_blur = input_data_gen(vid, self.ce_code, noise_level)
 
         # calc middle video frame
         sharp_img = vid[self.ce_code.shape[0]//2, ...]
 
         # [debug] test
         # multi_imsave(vid*255, 'vid')
-        # cv2.imwrite('./outputs/tmp/test/coded_meas.jpg', coded_meas[:,:,::-1]*255)
+        # cv2.imwrite('./outputs/tmp/test/coded_blur.jpg', coded_blur[:,:,::-1]*255)
         # cv2.imwrite('./outputs/tmp/test/clear.jpg', sharp_img[:, :, ::-1]*255)
 
-        return sharp_img.transpose(2, 0, 1), coded_meas.transpose(2, 0, 1)
+        return sharp_img.transpose(2, 0, 1), coded_blur.transpose(2, 0, 1)
+        # return vid.transpose(0, 3, 1, 2), coded_blur.transpose(2, 0, 1)
 
     def __len__(self):
         return len(self.vid_idx)
@@ -373,16 +378,16 @@ if __name__ == '__main__':
     #     data_dir, ce_code, patch_size=512, tform_op=['all'], batch_size=2, num_workers=8, all2CPU=True,status='test')
 
     k = 0
-    for sharp_img, coded_meas in val_dataloader:
+    for sharp_img, coded_blur in val_dataloader:
         k += 1
-        coded_meas = coded_meas.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
+        coded_blur = coded_blur.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
         sharp_img = sharp_img.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
         # init_input = init_input.numpy()[0, ::-1, ...].transpose(1, 2, 0)*255
 
         if not os.path.exists('./outputs/tmp/test/'):
             os.makedirs('./outputs/tmp/test/')
 
-        # cv2.imwrite(f'./outputs/tmp/test/{k:03d}coded_meas.jpg', coded_meas)
+        # cv2.imwrite(f'./outputs/tmp/test/{k:03d}coded_blur.jpg', coded_blur)
         cv2.imwrite(f'./outputs/tmp/test/{k:03d}clear.jpg', sharp_img)
         # cv2.imwrite('./outputs/tmp/test/init_input.jpg', init_input)
 

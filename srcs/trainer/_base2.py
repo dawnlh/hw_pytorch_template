@@ -5,6 +5,7 @@ import torch.distributed as dist
 from torchvision.utils import make_grid
 from torch.nn.parallel import DistributedDataParallel
 from abc import abstractmethod, ABCMeta
+from datetime import datetime
 from pathlib import Path
 from shutil import copyfile
 from numpy import inf
@@ -37,9 +38,9 @@ class BaseTrainer2(metaclass=ABCMeta):
             raise NotImplementedError('Multi-GPU is not supported yet')
 
         if is_master():
-            self.checkpt_dir.mkdir()
+            self.checkpt_dir.mkdir(exist_ok=True)
             # setup visualization writer instance
-            log_dir.mkdir()
+            log_dir.mkdir(exist_ok=True)
             self.writer = TensorboardWriter(
                 log_dir, cfg_trainer['tensorboard'])
         else:
@@ -110,7 +111,8 @@ class BaseTrainer2(metaclass=ABCMeta):
         """
         Full training logic
         """
-
+        self.logger.info(
+            f"\n⏩⏩ Start Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ⏩⏩\n")
         # get starting point of training workflow
         if 'epoch' in self.resume_conf and self.resume_flag:
             start_point = self._get_start_point()
@@ -285,7 +287,7 @@ class BaseTrainer2(metaclass=ABCMeta):
         resume_path = opj(os.getcwd(), self.config['resume_'+model_id])
 
         self.logger.info(
-            f"💡 Loading checkpoint for model_{model_id}: {resume_path} ...")
+            f"📥 Loading checkpoint for model_{model_id}: {resume_path} ...")
         checkpoint = torch.load(resume_path)
         self.logger.info(
             f"model_{model_id} checkpoint (epoch {checkpoint['epoch']}) loaded!")
@@ -308,11 +310,11 @@ class BaseTrainer2(metaclass=ABCMeta):
         if 'epoch' in resume_conf:
             setattr(self, 'start_epoch_'+model_id, checkpoint['epoch'] + 1)
             self.logger.info(
-                f"▶️ Start training model_{model_id} from resumed epoch ({checkpoint['epoch']}).")
+                f"📣 Epoch index for model_{model_id} resumed to epoch ({checkpoint['epoch']}).")
         else:
             setattr(self, 'start_epoch_'+model_id, 1)
             self.logger.info(
-                f"▶️ Start training model_{model_id} from restarted epoch (1).")
+                f"📣 Epoch index for model_{model_id} renumbered from epoch (1).")
 
     def _progress(self, batch_idx):
         base = '[{}/{} ({:.0f}%)]'

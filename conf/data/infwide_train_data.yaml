@@ -11,7 +11,7 @@ noise_type: 'camera' # 'gaussian' | 'camera'
 # noise_params: {'sigma': 0.05} # for gaussian
 noise_params: {'sigma_beta': [0.01, 0.03], 'sigma_r': [0.5, 4], 'nd_factor': [2, 8], 'kc': [4,16]} # for camera,exp
 motion_len: [13,35] # motion kernel length
-status: 'train'
+status: ${status}
 shuffle: true
 num_workers: ${num_workers}
 validation_split: 0.05

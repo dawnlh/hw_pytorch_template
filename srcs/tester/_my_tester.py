@@ -22,12 +22,11 @@ def test_worker(gpus, config):
 
     # logger & dir setting
     logger = logging.getLogger('test')
-    if not os.path.exists(config.outputs_dir):
-        os.makedirs(config.outputs_dir)
+    os.makedirs(config.outputs_dir,exist_ok=True)
 
     # prepare model & checkpoint for testing
     # load checkpoint
-    logger.info(f"💡 Loading checkpoint: {config.checkpoint} ...")
+    logger.info(f"📥 Loading checkpoint: {config.checkpoint} ...")
     checkpoint = torch.load(config.checkpoint)
     logger.info(f"💡 Checkpoint loaded: epoch {checkpoint['epoch']}.")
 
@@ -103,7 +102,7 @@ def test(test_data_loader, model,  device, criterion, metrics, config, logger=No
     total_metrics = torch.zeros(len(metrics))
     time_start = time.time()
     with torch.no_grad():
-        for i, (data_noisy, kernel, target) in enumerate(tqdm(test_data_loader, desc='Testing')):
+        for i, (data_noisy, kernel, target) in enumerate(tqdm(test_data_loader, desc='⏳ Testing')):
             data_noisy, kernel, target = data_noisy.to(device), kernel.to(device), target.to(
                 device)
 
