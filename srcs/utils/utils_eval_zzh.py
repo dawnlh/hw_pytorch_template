@@ -71,7 +71,7 @@ def model_complexity(model, input_shape, input_constructor=None, logger=None, pr
         print('='*40+'\n{:<30} {}'.format('Inputs resolution: ', input_shape))
         print('{:<30} {}'.format('Computational complexity: ', macs))
         print('{:<30}  {}\n'.format(
-            'Number of parameters: ', params)+'='*40)
+            'Number of trainable parameters: ', params)+'='*40)
 
 # ---------------------------------------------------
 # inference time

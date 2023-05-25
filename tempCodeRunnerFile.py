@@ -1,0 +1,1 @@
+(macs[i], psnr_v[i])
