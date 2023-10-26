@@ -1,11 +1,19 @@
-# PyTorch Template Project
-Simple project base template for PyTorch deep Learning project.
+# My PyTorch Template
+
+[![PyTorch Template](https://img.shields.io/badge/PyTorch--Template-A%20deep%20learning%20project%20template%20based%20on%20Pytorch-green)](https://github.com/dawnlh/my_pytorch_template)
+
 
 <!-- TOC depthfrom:undefined depthto:undefined orderedlist:undefined -->
 
-
-
 <!-- /TOC -->
+
+## Features
+* Simple and clear directory structure, suitable for most of deep learning projects.
+* Hierarchical management of project configurations with [Hydra](https://hydra.cc/docs/intro).
+* Advanced logging and monitoring for validation metrics. Automatic handling of model checkpoints and experiments.
+* Distributed Data Parallel(DDP) support.
+
+> **Note**: This repository is detached from [SunQpark/pytorch-template](https://github.com/SunQpark/pytorch-template), in order to introduce advanced features rapidly without concerning much for backward compatibility.
 
 ## Installation
 ### Requirements
@@ -15,40 +23,53 @@ Simple project base template for PyTorch deep Learning project.
 * tqdm
 * hydra-core >= 1.0.3
 
-### Features
-* Simple and clear directory structure, suitable for most of deep learning projects.
-* Hierarchical management of project configurations with [Hydra](https://hydra.cc/docs/intro).
-* Advanced logging and monitoring for validation metrics. Automatic handling of model checkpoints.
-* **Note**: This repository is detached from [victorisque/pytorch-template](https://github.com/victoresque/pytorch-template), in order to introduce advanced features rapidly without concerning much for backward compatibility.
+> refer to [requirements.txt](requirements.txt) for more details
+
 
 ### Folder Structure
+
+Main directories and files
+
 ```yaml
   pytorch-template/
   ├── train.py                  # main script to start training.
-  ├── evaluate.py               # script to evaluate trained model on testset.
+  ├── test.py                   # main script to start testing.
   ├── conf # config files. explained in separated section below.
   │   └── ...
   ├── srcs # source code.
-  │   ├── data_loader           # data loading, preprocessing
-  │   │   └── data_loaders.py
-  │   ├── model
-  │   │   ├── loss.py
-  │   │   ├── metric.py
-  │   │   └── model.py
-  │   ├── trainer               # customized class managing training process
-  │   │   ├── base.py
-  │   │   └── trainer.py
-  │   ├── logger.py             # tensorboard, train / validation metric logging
-  │   └── utils
-  │       └── util.py
-  ├── new_project.py            # script to initialize new project
-  ├── requirements.txt
-  ├── README.md
+  │   ├── trainer         # customized training process 
+  │   │   ├── _engine.py  # training engine
+  │   │   ├── _base.py    # basic trainner class
+  │   │   └── trainer.py  # customized trainer class
+  │   ├── tester          # customized testing process
+  │   │   └── ... 
+  │   ├── model           # model architecture
+  │   │   └── ...
+  │   ├── data_loader     # data loading, preprocessing
+  │   │   └── ...
+  │   ├── loss            # loss function
+  │   │   └── ...
+  │   ├── metric          # evaluation metric
+  │   │   └── ...
+  │   ├── optimizer       # optimizer
+  │   │   └── ...
+  │   ├── scheduler       # learning rate scheduler
+  │   │   └── ...
+  │   ├── utils
+  │   │   └── ...
+  │   ├── toolbox
+  │   │   └── ...
+  │   ├── snippets
+  │   │   └── ...
+  │   └── logger.py     # tensorboard, metric logging
+  ├── requirements.txt  # requirements file for the  environment
+  ├── README_project.md # a template for project README
+  ├── README.md         # template doc (this file)
   └── LICENSE
 ```
 
 ## Usage
-This template itself is an working example project which trains a simple model(LeNet) on [Fashion-MNIST](https://github.com/zalandoresearch/fashion-mnist) dataset.
+This template itself is an working example project which trains a simple model(ResUNet) on a demo dataset for image denoising.
 Try `python train.py` to run training.
 
 ### Hierarchical configurations with Hydra
@@ -67,25 +88,21 @@ Check [Hydra documentation](https://hydra.cc/), for more information.
 ```yaml
   conf/ # hierarchical, structured config files to be used with 'Hydra' framework
   ├── train.yaml                # main config file used for train.py
-  ├── evaluate.yaml             # main config file used for evaluate.py
+  ├── test.yaml                 # main config file used for test.py
   ├── hparams                   # define global hyper-parameters
-  │   └── lenet_baseline.yaml
-  ├── data
-  │   ├── mnist_test.yaml
-  │   └── mnist_train.yaml
-  ├── model                     # select NN architecture to train
-  │   └── mnist_lenet.yaml
-  ├── status                    # set train/debug mode.
-  │   ├── debug.yaml            #   debug mode runs few data to test the trainning pipeline
-  │   └── train.yaml            #   train mode is default with full logging
-  │
+  │   └── basenet_hyparams.yaml
+  ├── data                      # define data loading parameters
+  │   ├── train_data.yaml
+  │   ├── test_data.yaml
+  │   └── valid_data.yaml
+  ├── network                   # select NN architecture to train
+  │   └── basenet.yaml
   └── hydra                     # configure hydra framework
-      ├── job_logging           #   config for python logging module
-      │   └── custom.yaml
-      └── run/dir               #   setup working directory
-          ├── job_timestamp.yaml
-          └── no_chdir.yaml
+      └── job_logging           #   config for python logging module
+          └── custom.yaml
 ```
+
+> Each file has a corresponding .md file for usage explanation.
 
 ### Using config files
 Modify the configurations in `.yaml` files in `conf/` dir, then run:
@@ -205,12 +222,9 @@ You can enable multi-GPU training(with DataParallel) by setting `gpus` argument 
 ## Customization
 
 ### Data Loader
-* **Writing your own data loader**
-
-Please refer to `data_loader/data_loaders.py` for an MNIST data loading example.
+Please refer to `srcs/data_loader/` for some pre-defined dataloaders or write your own data loader there.
 
 ### Trainer
-* **Writing your own trainer**
 
 1. **Inherit ```BaseTrainer```**
 
@@ -224,43 +238,28 @@ Please refer to `data_loader/data_loaders.py` for an MNIST data loading example.
 
 2. **Implementing abstract methods**
 
-    You need to implement `_train_epoch()` for your training process, if you need validation then you can implement `_valid_epoch()` as in `trainer/trainer.py`
+    You need to implement `_train_epoch()` for your training process, if you need to conduct test or validation then you can implement `_test_epoch()` and `_valid_epoch()` as in `trainer/trainer.py`
 
-* **Example**
+> Example: please refer to `srcs/trainer/basenet_trainer.py` for an example of `basenet` training.
 
-  Please refer to `trainer/trainer.py` for MNIST training.
-
-* **Iteration-based training**
-
-  `Trainer.__init__` takes an optional argument, `limit_train_iters` which controls number of batches(steps) in each epoch.
 
 ### Model
-* **Writing your own model**
-<!-- deprecated -->
-1. **Inherit `BaseModel`**
 
-    `BaseModel` handles:
-    * Inherited from `torch.nn.Module`
-    * `__str__`: Modify native `print` function to prints the number of trainable parameters.
-
-2. **Implementing abstract methods**
-
-    Implement the foward pass method `forward()`
-
-* **Example**
-
-  Please refer to `model/model.py` for a LeNet example.
+Please refer to `srcs/model/` for some pre-defined models and modules.
 
 ### Loss
-Custom loss functions can be implemented in 'model/loss.py'. Use them by changing the name given in "loss" in config file, to corresponding name.
+Custom loss functions can be implemented in `srcs/loss`. Use them by changing the name given in "loss" in config file, to corresponding name.
 
 ### Metrics
-Metric functions are located in 'model/metric.py'.
+Metric functions are located in `srcs/metric`.
 
 You can monitor multiple metrics by providing a list in the configuration file, e.g.:
-  ```yaml
-  "metrics": ["accuracy", "top_k_acc"],
-  ```
+```yaml
+metrics:
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: psnr
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+```
 
 ### Additional logging
 If you have additional information to be logged, in `_train_epoch()` of your trainer class, merge them with `log` as shown below before returning:
@@ -278,16 +277,19 @@ You can test trained model by running `test.py` passing path to the trained chec
 To split validation data from a data loader, call `BaseDataLoader.split_validation()`, then it will return a data loader for validation of size specified in your config file.
 The `validation_split` can be a ratio of validation set per total data(0.0 <= float < 1.0), or the number of samples (0 <= int < `n_total_samples`).
 
-**Note**: the `split_validation()` method will modify the original data loader
-**Note**: `split_validation()` will return `None` if `"validation_split"` is set to `0`
+
+> (1) the `split_validation()` method will modify the original data loader. 
+> (2) `split_validation()` will return `None` if `"validation_split"` is set to `0`
+
+You can also assign a specific validation dataloader separately by setting `config/valid_data.yaml` and `config.defaults.data`, and enabling `config.trainer.assigned_valid` in config files.
 
 ### Checkpoints
 You can specify the name of the training session in config files:
   ```yaml
-  "name": "MNIST_LeNet",
+  "exp_name": "MNIST_LeNet",
   ```
 
-The checkpoints will be saved in `checkpoint_dir/name/timestamp/checkpoint_epoch_n`, with timestamp in mmdd_HHMMSS format.
+The checkpoints will be saved in `outputs/exp_name/status/timestamp/checkpoints/`, with timestamp in yy-mm-dd_HH-MM-SS format.
 
 A copy of config file will be saved in the same folder.
 
@@ -298,7 +300,6 @@ A copy of config file will be saved in the same folder.
     'epoch': epoch,
     'state_dict': self.model.state_dict(),
     'optimizer': self.optimizer.state_dict(),
-    'epoch_metrics': self.ep_metrics,
     'config': self.config
   }
   ```
@@ -324,31 +325,25 @@ If you need more visualizations, use `add_scalar('tag', data)`, `add_image('tag'
 
 **Note**: You don't have to specify current steps, since `WriterTensorboard` class defined at `srcs.logger.py` will track current steps.
 
+### More functions
+- model information: params, MACs, inference time, see`/srcs/utils/utils_eval_zzh.py`
+
+
 ## Trouble shoot
 - Warning occurs and code stops when using multi-GPU
   - info: UserWarning: semaphore_tracker: There appear to be 26 leaked semaphores to clean up at shutdown
   - solution: run `export PYTHONWARNINGS='ignore:semaphore_tracker:UserWarning'` to ignore this warning
 
-### More functions
-- model information: params, MACs, inference time, see`/srcs/utils/utils_eval_zzh.py`
+- Metrics on the validation set is always higher than those on the training set in the training process
+  - This is normal, because the training performance metrics are averaged among all the training steps in one epoch, while those of the validation is just calculated after the last training step.
 
-
-## Contribution
-Feel free to contribute any kind of function or enhancement, here the coding style follows PEP8
-
-Code should pass the [Flake8](http://flake8.pycqa.org/en/latest/) check before committing.
 
 ## TODOs
-- [ ] optimize the docs
-- [ ] DDP support
-- [ ] optimizer dir structure: add a new git branch `project` and move the project example there to make the template concise
-- [ ] verification: fix bugs, refactor codes and enable success running
+
 
 ## License
 This project is licensed under the MIT License. See  LICENSE for more details
 
-## Note
-- The performance index (like ssim/psnr) of training seems always lower than that of validation. This is because the training performance index is averaged among all the training steps in one epoch, while that of the validation is just calculated after the last training step.
 
 ## Misc
 - emoji used:

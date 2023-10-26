@@ -1,0 +1,42 @@
+##### hydra
+hydra:
+    run:
+      dir: ./outputs/${exp_name}/${status}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    sweep:
+      dir: ./outputs/${exp_name}/${status}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+      subdir: ${hydra.job.override_dirname}
+
+##### dir
+exp_name: code_dev/basenet  # experiment name
+tester_name: basenet_tester # tester name
+status: test             # run status: test|simuexp|realexp
+checkpoint: ${hydra:runtime.cwd}/model_zoo/basenet/model_latest.pth    # loading checkpoint (${hydra:runtime.cwd})
+outputs_dir: outputs/
+
+##### run
+gpus: [4,6]            # GPU used, Warning: Only one GPU is supported for 'test' now
+num_workers: 8      # number of cpu worker
+save_img: true      # save the reconstructed images
+
+##### arch (default to use `arch` in loaded config)
+# network_name: basenet
+# arch:
+#   _target_: srcs.model.basenet_model.basenet
+#   n_colors: 3
+#   nc: [32, 64, 128, 256]
+
+##### metrics
+metrics:
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: psnr
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: ssim
+  - _target_: srcs.metric.metric_iqa.IQA_Metric
+    metric_name: lpips
+
+##### data&nets
+defaults:
+  - data: basenet_test_data      # basenet_test_data | basenet_exp_data
+  - override hydra/job_logging : custom # custom | colorlog
+  - override hydra/hydra_logging: colorlog
+  - _self_

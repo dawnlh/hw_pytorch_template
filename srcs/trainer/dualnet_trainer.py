@@ -60,7 +60,7 @@ class Trainer(BaseTrainer2):
         self.writer.set_step(
             (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}_{model_id}')
 
-        loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
+        loss_v = loss.item() if self.config.n_gpus == 1 else collect(loss)
         getattr(self, f'{phase}_metrics_{model_id}').update('loss', loss_v)
 
         for k, v in iter_metrics.items():
@@ -530,7 +530,7 @@ def trainning(gpus, config):
     # enable access to non-existing keys
     OmegaConf.set_struct(config, False)
     n_gpu = len(gpus)
-    config.n_gpu = n_gpu
+    config.n_gpus = n_gpu
     # prevent access to non-existing keys
     OmegaConf.set_struct(config, True)
 

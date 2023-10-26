@@ -1,21 +1,16 @@
-import time
 from tqdm import tqdm
 import torch
+import time
 import torch.distributed as dist
 from torchvision.utils import make_grid
-import platform
-from omegaconf import OmegaConf
 from ._base import BaseTrainer
-from srcs.utils._util import collect, instantiate, get_logger
+from srcs.utils._util import collect
 from srcs.logger import BatchMetrics
-import torch.nn.functional as F
 from srcs.utils.utils_image_kair import tensor2uint, imsave
-from srcs.utils.utils_deblur_zzh import pad4conv
-from srcs.utils.utils_eval_zzh import gpu_inference_time, model_complexity
-# ======================================
-# Trainer: modify '_train_epoch'
-# ======================================
 
+# ======================================
+# Trainer
+# ======================================
 
 class Trainer(BaseTrainer):
     """
@@ -35,7 +30,7 @@ class Trainer(BaseTrainer):
                     "Warning: test dataloader for final test is None, final test is omitted")
                 self.final_test = False
         self.input_denoise_epoch = input_denoise_epoch
-        self.losses = self.config['losses']
+        # self.loss = self.config['losses']
         self.lr_scheduler = lr_scheduler
         self.limit_train_iters = config['trainer'].get(
             'limit_train_iters', len(self.data_loader))
@@ -53,9 +48,6 @@ class Trainer(BaseTrainer):
             *args, postfix='/valid', writer=self.writer)
         self.grad_clip = 0.5  # optimizer gradient clip value
 
-        # for this proj
-        self.n_levels = 2  # model scale levels
-        self.scales = [0.5, 1]  # model scale
 
     def clip_gradient(self, optimizer, grad_clip=0.5):
         """
@@ -78,7 +70,9 @@ class Trainer(BaseTrainer):
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():
-            getattr(self, f'{phase}_metrics').update(k, v.item()) # `v` is a torch tensor
+            if isinstance(v, torch.Tensor):
+                v = v.item()
+            getattr(self, f'{phase}_metrics').update(k, v) # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(
@@ -94,77 +88,43 @@ class Trainer(BaseTrainer):
         self.model.train()
         self.train_metrics.reset()
 
-        for batch_idx, (data_noisy, kernel, target, data, sigma) in enumerate(self.data_loader):
-            data_noisy, kernel, target, data = data_noisy.to(self.device), kernel.to(self.device), target.to(
-                self.device), data.to(self.device)
+        for batch_idx, (img_noise, img_target, noise_params) in enumerate(self.data_loader):
+            img_noise, img_target = img_noise.to(self.device), img_target.to(self.device)
 
-            output, data_denoise = self.model(data_noisy, kernel)
+            # forward
+            output = self.model(img_noise)
 
-            # main loss calc
-            main_loss = 0
-            for level in range(self.n_levels):
-                scale = self.scales[level]
-                n, c, h, w = target.shape
-                hi = int(round(h * scale))
-                wi = int(round(w * scale))
-                sharp_level = F.interpolate(target, (hi, wi), mode='bilinear')
-                main_loss = main_loss + \
-                    self.criterion['main_loss'](output[level], sharp_level)
-            loss = self.losses['main_loss']*main_loss
+            # loss calc
+            loss = self.criterion(output, img_target)
 
-            # loss2 calc
-            if 'loss2' in self.losses:
-                input_denoise_loss = self.criterion['loss2'](
-                    data_denoise, data)
-                loss = loss + \
-                    self.losses['loss2']*input_denoise_loss
-
-            # loss3 calc
-            if 'loss3' in self.losses:
-                # sharp image circular padding
-                kernel_flip = kernel.flip(-2, -1)
-                kernel_sz = kernel_flip.shape[2:]
-                output_ = output[1]
-                N, C, H, W = output_.shape
-                output_pad = pad4conv(output_, kernel_sz)
-                forward_conv = torch.zeros_like(output_)
-                for k in range(N*C):
-                    forward_conv[k//3][k % 3] = F.conv2d(output_pad[k//3][k % 3].unsqueeze(
-                        0).unsqueeze(0), kernel_flip[k//3].unsqueeze(0), padding='valid').squeeze()
-
-                forward_conv_loss = self.criterion['loss3'](
-                    forward_conv, data)
-                loss = loss + \
-                    self.losses['loss3']*forward_conv_loss
-
+            # backward
             self.optimizer.zero_grad()
             loss.backward()
 
-            # clip gradient
+            # clip gradient and update
             self.clip_gradient(self.optimizer, self.grad_clip)
             self.optimizer.step()
 
             # iter record
             if batch_idx % self.logging_step == 0 or (batch_idx+1) == self.limit_train_iters:
                 # iter metrics
-                _output = output[1]
                 iter_metrics = {}
                 for met in self.metric_ftns:
                     if self.config.n_gpus > 1:
                         # average metric between processes
-                        metric_v = collect(met(_output, target))
+                        metric_v = collect(met(output, img_target))
                     else:
-                        # print(output.shape, target.shape)
-                        metric_v = met(_output, target)
+                        # print(output.shape, img_target.shape)
+                        metric_v = met(output, img_target)
                     iter_metrics.update({met.__name__: metric_v})
 
                 # iter images
                 image_tensors = {
-                    'input': data_noisy[0:4, ...], 'target': target[0:4, ...], 'output': _output[0:4, ...], 'kernel': kernel[0:4, ...]}
+                    'input': img_noise[0:4, ...], 'img_target': img_target[0:4, ...], 'output': output[0:4, ...]}
 
                 # aftet iter hook
                 self._after_iter(epoch, batch_idx, 'train',
-                                 loss, iter_metrics, {}) # don't save images in every iter to save space
+                                 loss, iter_metrics, {})  # don't save images in every iter to save space
                 # iter log
                 self.logger.info(
                     f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
@@ -178,18 +138,15 @@ class Trainer(BaseTrainer):
                         f'train/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
                 break  # endding epoch
 
+        # epoch log
         log = self.train_metrics.result()
 
+        # valid after every epoch
         if self.valid_data_loader:
             val_log = self._valid_epoch(epoch)
             log.update(**val_log)
 
-        # stop input denoise optimization when reaching maximum epoch
-        if self.input_denoise_epoch is not None and epoch == self.input_denoise_epoch:
-            self.model.DenoiseUnet.requires_grad = False
-            self.logger.info(
-                'Info: reach  INPUT_DENOISE_EPOCH(%d), stop denoise module optimization' % self.input_denoise_epoch)
-
+        # learning rate update
         if self.lr_scheduler is not None:
             self.lr_scheduler.step()
 
@@ -210,31 +167,31 @@ class Trainer(BaseTrainer):
         self.valid_metrics.reset()
         with torch.no_grad():
             # show ce code update only when optimized
-            for batch_idx, (data_noisy, kernel, target, data, sigma) in enumerate(self.data_loader):
-                data_noisy, kernel, target, data = data_noisy.to(self.device), kernel.to(self.device), target.to(
-                    self.device), data.to(self.device)
+            for batch_idx, (img_noise, img_target, noise_params) in enumerate(self.valid_data_loader):
+                img_noise, img_target = img_noise.to(
+                    self.device), img_target.to(self.device)
 
-                output, data_denoise = self.model(data_noisy, kernel)
+                # forward
+                output = self.model(img_noise)
 
-                # loss
-                loss = self.criterion['main_loss'](output[1], target)
+                # loss calc
+                loss = self.criterion(output, img_target)
 
                 # iter record
                 # iter metrics
-                _output = output[1]
                 iter_metrics = {}
                 for met in self.metric_ftns:
                     if self.config.n_gpus > 1:
                         # average metric between processes
-                        metric_v = collect(met(_output, target))
+                        metric_v = collect(met(output, img_target))
                     else:
-                        # print(output.shape, target.shape)
-                        metric_v = met(_output, target)
+                        # print(output.shape, img_target.shape)
+                        metric_v = met(output, img_target)
                     iter_metrics.update({met.__name__: metric_v})
 
                 # iter images
                 image_tensors = {
-                    'input': data_noisy[0:4, ...], 'target': target[0:4, ...], 'output': _output[0:4, ...], 'kernel': kernel[0:4, ...]}
+                    'input': img_noise[0:4, ...], 'img_target': img_target[0:4, ...], 'output': output[0:4, ...]}
 
                 # aftet iter hook
                 self._after_iter(epoch, batch_idx, 'valid',
@@ -253,7 +210,6 @@ class Trainer(BaseTrainer):
         if self.log_weight:
             for name, p in self.model.named_parameters():
                 self.writer.add_histogram(name, p, bins='auto')
-
         return self.valid_metrics.result()
 
     def _test_epoch(self):
@@ -268,31 +224,30 @@ class Trainer(BaseTrainer):
         time_start = time.time()
 
         with torch.no_grad():
-            for i, (data_noisy, kernel, target, data, sigma) in enumerate(tqdm(self.test_data_loader)):
-                data_noisy, kernel, target, data = data_noisy.to(self.device), kernel.to(self.device), target.to(
-                    self.device), data.to(self.device)
+            for batch_idx, (img_noise, img_target, noise_params) in enumerate(tqdm(self.test_data_loader)):
+                img_noise, img_target = img_noise.to(self.device), img_target.to(self.device)
 
-                output, data_denoise = self.model(data_noisy, kernel)
+                # forward
+                output = self.model(img_noise)
 
                 # save some sample images
-                output = output[1]  # zzh: deblured image
-                for k, (in_img, out_img, gt_img) in enumerate(zip(data_noisy, output, target)):
+                for k, (in_img, out_img, gt_img) in enumerate(zip(img_noise, output, img_target)):
                     in_img = tensor2uint(in_img)
                     out_img = tensor2uint(out_img)
                     gt_img = tensor2uint(gt_img)
                     imsave(
-                        in_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_in_img.jpg')
+                        in_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_in_img.png')
                     imsave(
-                        out_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_out_img.jpg')
+                        out_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_out_img.png')
                     imsave(
-                        gt_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_gt_img.jpg')
+                        gt_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_gt_img.png')
 
                 # computing loss, metrics on test set
-                loss = self.criterion['main_loss'](output, target)
-                batch_size = data_noisy.shape[0]
+                loss = self.criterion(output, img_target)
+                batch_size = img_noise.shape[0]
                 total_loss += loss.item() * batch_size
                 for i, metric in enumerate(self.metric_ftns):
-                    total_metrics[i] += metric(output, target) * batch_size
+                    total_metrics[i] += metric(output, img_target) * batch_size
         time_end = time.time()
         time_cost = time_end-time_start
         n_samples = len(self.test_data_loader.sampler)
@@ -319,113 +274,3 @@ class Trainer(BaseTrainer):
         return base.format(current, total, 100.0 * current / total)
 
 
-# ======================================
-# Trainning: run Trainer for trainning
-# ======================================
-
-
-def trainning(gpus, config):
-    # enable access to non-existing keys
-    OmegaConf.set_struct(config, False)
-    n_gpu = len(gpus)
-    config.n_gpus = n_gpu
-    # prevent access to non-existing keys
-    OmegaConf.set_struct(config, True)
-
-    if n_gpu > 1:
-        torch.multiprocessing.spawn(
-            multi_gpu_train_worker, nprocs=n_gpu, args=(gpus, config))
-    else:
-        train_worker(config)
-
-
-def train_worker(config):
-    # prevent access to non-existing keys
-    OmegaConf.set_struct(config, True)
-
-    logger = get_logger('train')
-    # setup data_loader instances
-    train_data_loader, valid_data_loader = instantiate(
-        config.data_loader)
-
-    # conduct test ater training
-    if config.trainer.final_test:
-        test_data_loader = instantiate(config.test_data_loader)
-    else:
-        test_data_loader = None
-
-    # use assigned validation during training
-    if config.trainer.assigned_valid:
-        logger.info('== using assigned validation set ==')
-        valid_data_loader = instantiate(config.valid_data_loader)
-
-    if not valid_data_loader:
-        logger.warning('!= validation set  is empty =!')
-
-    # build model & print its structure
-    model = instantiate(config.arch)
-    logger.info(model)
-
-    # calc MACs & Param. Num
-    # def prepare_input(resolution):
-    #     data_noisy = torch.FloatTensor(1, 3, *resolution[0])
-    #     kernel = torch.FloatTensor(1, 1, *resolution[1])
-    #     return dict(data_noisy=data_noisy, kernel=kernel)
-    model_complexity(model=model, input_shape=(1, 3, 256, 256), input_constructor=None, logger=logger)
-
-
-    # get function handles of loss and metrics
-    criterion = {}
-    if 'main_loss' in config.losses:
-        criterion['main_loss'] = instantiate(config.main_loss, is_func=True)
-    if 'loss2' in config.losses:
-        criterion['loss2'] = instantiate(
-            config.input_denoise_loss, is_func=True)
-    if 'loss3' in config.losses:
-        criterion['loss3'] = instantiate(
-            config.forward_conv_loss, is_func=True)
-
-    # metrics = [instantiate(met, is_func=True) for met in config['metrics']]
-    metrics = [instantiate(met) for met in config['metrics']]
-
-    # build optimizer, learning rate scheduler.
-    optimizer = instantiate(config.optimizer, model.parameters())
-    lr_scheduler = instantiate(config.lr_scheduler, optimizer)
-    trainer = Trainer(model, criterion, metrics, optimizer,
-                      config=config,
-                      train_data_loader=train_data_loader,
-                      valid_data_loader=valid_data_loader,
-                      test_data_loader=test_data_loader,
-                      lr_scheduler=lr_scheduler, input_denoise_epoch=config.input_denoise_epoch)
-    trainer.train()
-
-
-def multi_gpu_train_worker(rank, gpus, config):
-    """
-    Training with multiple GPUs
-
-    Args:
-        rank ([type]): [description]
-        gpus ([type]): [description]
-        config ([type]): [description]
-
-    Raises:
-        RuntimeError: [description]
-    """
-    # initialize training config
-    config.local_rank = rank
-    if(platform.system() == 'Windows'):
-        backend = 'gloo'
-    elif(platform.system() == 'Linux'):
-        backend = 'nccl'
-    else:
-        raise RuntimeError('Unknown Platform (Windows and Linux are supported')
-    dist.init_process_group(
-        backend=backend,
-        init_method='tcp://127.0.0.1:34567',
-        world_size=len(gpus),
-        rank=rank)
-    torch.cuda.set_device(gpus[rank])
-
-    # start training processes
-    train_worker(config)

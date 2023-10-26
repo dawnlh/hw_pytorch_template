@@ -297,9 +297,12 @@ class VidBlur_Dataset_all2CPU(Dataset):
         return len(self.vid_idx)
 
 
-class VidBlur_Dataset_RealExp:
+class VidBlur_Dataset_Exp:
     """
-    Datasetfor real test
+    Dataset for experiment
+    expmode:
+        simuexp: with ground truth
+        realexp: without ground truth
     """
     pass
 
@@ -323,12 +326,12 @@ def get_data_loaders(data_dir, ce_code, batch_size, patch_size=None, tform_op=No
         else:
             dataset = VidBlur_Dataset(
                 data_dir, ce_code, patch_size, tform_op, sigma_range, len(ce_code))
-    elif status == 'real_test':
-        dataset = VidBlur_Dataset_RealExp(
-            data_dir, ce_code, patch_size)
+    elif status in ['simuexp', 'realexp']:
+        dataset = VidBlur_Dataset_Exp(
+            data_dir, ce_code, patch_size, exp_mode=status)
     else:
         raise NotImplementedError(
-            f"status ({status}) should be 'train' | 'test' ")
+            f"status ({status}) should be 'train' | 'test' | 'simuexp' | 'realexp'")
 
     loader_args = {
         'batch_size': batch_size,
@@ -338,29 +341,53 @@ def get_data_loaders(data_dir, ce_code, batch_size, patch_size=None, tform_op=No
         'pin_memory': pin_memory
     }
 
-    if status == 'train' or status == 'debug':
+    # dataset split & dist train assignment
+    if status == 'train':
         # split dataset into train and validation set
         num_total = len(dataset)
         if isinstance(validation_split, int):
-            assert validation_split > 0
+            assert validation_split >= 0
             assert validation_split < num_total, "validation set size is configured to be larger than entire dataset."
             num_valid = validation_split
-        else:
+        elif isinstance(validation_split, float):
             num_valid = int(num_total * validation_split)
+        else:
+            num_valid = 0  # don't split valid set
+
         num_train = num_total - num_valid
 
         train_dataset, valid_dataset = random_split(
             dataset, [num_train, num_valid])
 
+        # distribution trainning setting
         train_sampler, valid_sampler = None, None
         if dist.is_initialized():
             loader_args['shuffle'] = False
             train_sampler = DistributedSampler(train_dataset)
-            valid_sampler = DistributedSampler(valid_dataset)
-        return DataLoader(train_dataset, sampler=train_sampler, **loader_args), \
-            DataLoader(valid_dataset, sampler=valid_sampler, **loader_args)
-    else:
+            if num_valid != 0:
+                valid_sampler = DistributedSampler(valid_dataset)
+
+        train_dataloader = DataLoader(
+            train_dataset, sampler=train_sampler, **loader_args)
+        if num_valid != 0:
+            val_dataloader = DataLoader(
+                valid_dataset, sampler=valid_sampler, **loader_args)
+        else:
+            val_dataloader = []
+
+        return train_dataloader, val_dataloader
+
+    elif status in ['test', 'realexp', 'simuexp']:
         return DataLoader(dataset, **loader_args)
+
+    elif status == 'valid':
+        if dist.is_initialized():
+            loader_args['shuffle'] = False
+            sampler = DistributedSampler(dataset)
+        return DataLoader(dataset, sampler=sampler, **loader_args)
+    else:
+        raise(ValueError(
+            "$Status can only be 'train'|'test'|'valid'|'simuexp'|'realexp'"))
 
 
 if __name__ == '__main__':

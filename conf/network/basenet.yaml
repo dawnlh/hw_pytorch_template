@@ -1,0 +1,19 @@
+# @package _global_
+network_name: basenet
+arch:
+  _target_: srcs.model.basenet_model.basenet
+  n_colors: 3
+  nc: [32, 64, 128, 256]
+
+loss:
+  _target_: srcs.loss._pix_loss_func.l1_loss
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: ${learning_rate}
+  weight_decay: ${weight_decay}
+  amsgrad: true
+lr_scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: ${scheduler_step_size}
+  gamma: ${scheduler_gamma}

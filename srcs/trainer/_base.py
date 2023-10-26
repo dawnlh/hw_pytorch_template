@@ -1,3 +1,6 @@
+# ======================================
+# BaseTrainer for basic network
+# ======================================
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel
@@ -23,10 +26,10 @@ class BaseTrainer(metaclass=ABCMeta):
         self.config = config
         self.logger = get_logger('trainer')
 
-        self.device = config.local_rank if config.n_gpu > 1 else 0
+        self.device = config.local_rank if config.n_gpus > 1 else 0
         self.model = model.to(self.device)
 
-        if config.n_gpu > 1:
+        if config.n_gpus > 1:
             # multi GPU
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             self.model = DistributedDataParallel(
@@ -91,7 +94,7 @@ class BaseTrainer(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def _val_epoch(self, epoch):
+    def _valid_epoch(self, epoch):
         """
         Validation logic for an epoch
 
@@ -162,7 +165,7 @@ class BaseTrainer(metaclass=ABCMeta):
             self.logger.info(
                 f'🕒 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_end-epoch_start:.2f}s, Total Time Cost: {(epoch_end-train_start)/3600:.2f}h\n')
             self.logger.info('=' * max_line_width)
-            if self.config.n_gpu > 1:
+            if self.config.n_gpus > 1:
                 dist.barrier()
         if self.final_test:
             self.logger.info(
@@ -178,7 +181,7 @@ class BaseTrainer(metaclass=ABCMeta):
         self.writer.set_step(
             (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}')
 
-        loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
+        loss_v = loss.item() if self.config.n_gpus == 1 else collect(loss)
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():

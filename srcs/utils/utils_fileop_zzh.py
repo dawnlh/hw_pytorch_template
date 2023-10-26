@@ -5,6 +5,29 @@ from os.path import join as opj
 # =================
 # get file path
 # =================
+def file_traverse(dir, ext=None):
+    """
+    traverse all the files and get their paths
+    Args:
+        dir (str): root dir path
+        ext (list[str], optional): included file extensions. Defaults to None, meaning inculding all files.
+    """
+
+    data_paths = []
+    skip_num = 0
+    file_num = 0
+
+    for dirpath, dirnames, filenames in os.walk(dir):
+        for filename in filenames:
+            img_path = opj(dirpath, filename)
+            if ext and img_path.split('.')[-1] not in ext:
+                print('Skip a file: %s' % (img_path))
+                skip_num += 1
+            else:
+                data_paths.append(img_path)
+                file_num += 1
+    return sorted(data_paths), file_num, skip_num
+    
 def list_subdir(dir, ext=None):
     """
     traverse all the files and get their paths

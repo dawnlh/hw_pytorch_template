@@ -3,7 +3,7 @@ import hydra
 import logging
 import torch
 import torch.distributed as dist
-from omegaconf import OmegaConf
+from omegaconf import OmegaConf, DictConfig
 from pathlib import Path
 from importlib import import_module
 from itertools import repeat

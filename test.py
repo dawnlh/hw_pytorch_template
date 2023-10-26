@@ -9,28 +9,30 @@ from importlib import import_module
 # ignore warning
 warnings.filterwarnings('ignore')
 
-# config: infwide_test
+# config: basenet_test
 
-@hydra.main(config_path='conf', config_name='infwide_test')
+@hydra.main(config_path='conf', config_name='basenet_test')
 def main(config):
-    # GPU setting
+    ## GPU setting
     if not config.gpus or config.gpus == -1:
         gpus = list(range(torch.cuda.device_count()))
     else:
         gpus = config.gpus
-    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpus))
-    n_gpu = len(gpus)
-    assert n_gpu <= torch.cuda.device_count(
-    ), 'Can\'t find %d GPU device on this machine.' % (n_gpu)
+    os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(map(str, gpus)) # set visible gpu ids
+    assert len(gpus) <= torch.cuda.device_count(), f'There are {torch.cuda.device_count()} GPUs on this machine, but you assigned $gpus={gpus}.'
+    OmegaConf.set_struct(config, False) # enable access to non-existing keys
+    config.n_gpus = len(gpus)
 
-    # show config
-    config_v = OmegaConf.to_yaml(config, resolve=True)
-    print('='*40+'\n', config_v, '\n'+'='*40+'\n')
+    ## show config
+    # interpret hydra config and convert it to yaml
+    config = OmegaConf.to_yaml(config, resolve=True)
+    print('='*40+'\n', config, '\n'+'='*40+'\n') # print config info
+    config = OmegaConf.create(config) # convert from yaml to OmegaConf
 
-    # testing
+    ## testing
     tester_name = 'srcs.tester.%s' % config.tester_name
     testing_module = import_module(tester_name)
-    testing_module.testing(gpus, config)
+    testing_module.testing(config)
 
 
 if __name__ == '__main__':

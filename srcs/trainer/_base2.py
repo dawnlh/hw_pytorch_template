@@ -1,3 +1,6 @@
+# ======================================
+# BaseTrainer2 for dual-structure network
+# ======================================
 import os
 import time
 import torch
@@ -22,7 +25,7 @@ class BaseTrainer2(metaclass=ABCMeta):
     def __init__(self, model_a, model_b, criterion_a, criterion_b, optimizer_a, optimizer_b, lr_scheduler_a, lr_scheduler_b, metrics_a, metrics_b, config, data_loader=None, valid_data_loader=None):
         self.config = config
         self.logger = get_logger('trainer')
-        self.device = config.local_rank if config.n_gpu > 1 else 0
+        self.device = config.local_rank if config.n_gpus > 1 else 0
         self.model_a = model_a.to(self.device)
         self.model_b = model_b.to(self.device)
 
@@ -34,7 +37,7 @@ class BaseTrainer2(metaclass=ABCMeta):
         self.logging_step = cfg_trainer.get('logging_step', 100)
         self.monitor = cfg_trainer.get('monitor', 'off')
 
-        if config.n_gpu > 1:
+        if config.n_gpus > 1:
             raise NotImplementedError('Multi-GPU is not supported yet')
 
         if is_master():
@@ -224,7 +227,7 @@ class BaseTrainer2(metaclass=ABCMeta):
         self.writer.set_step(
             (epoch - 1) * getattr(self, f'limit_{phase}_iters') + batch_idx, speed_chk=f'{phase}_{model_id}')
 
-        loss_v = loss.item() if self.config.n_gpu == 1 else collect(loss)
+        loss_v = loss.item() if self.config.n_gpus == 1 else collect(loss)
         getattr(self, f'{phase}_metrics_{model_id}').update('loss', loss_v)
 
         for k, v in iter_metrics.items():

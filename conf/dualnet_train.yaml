@@ -49,7 +49,6 @@ defaults:
   - data: _my_train_data
   - network: dualnet
   - hparams: ced_hyparams
-
   - override hydra/job_logging : custom # custom || colorlog
   - override hydra/hydra_logging: colorlog
   - _self_
