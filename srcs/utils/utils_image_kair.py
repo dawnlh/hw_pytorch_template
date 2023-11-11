@@ -1,6 +1,7 @@
 import os
 import math
 import random
+import einops
 import numpy as np
 import torch
 import cv2
@@ -166,22 +167,6 @@ def imsave(img, img_path, compress_ratio=0):
                     cv2.IMWRITE_PNG_COMPRESSION, compress_ratio])
     else:
         cv2.imwrite(img_path, img)
-
-
-def multi_imsave(imgs, img_path, format='.png', compress_ratio=0):
-    # function: RGB image sequence saving （N*H*W*3， numpy）
-    # tip: default $compress_ratio for built-in function cv2.imwrite is 95/100 and 3/10 for jpg and png foramt, respectively. Here default value set to 0
-    if imgs.shape[-1] == 3:
-        imgs = imgs[..., ::-1]
-    for k, img in enumerate(imgs):
-        if format.split('.')[-1] in ['jpg', 'jpeg']:
-            cv2.imwrite(img_path+str(k)+format, img, [
-                        cv2.IMWRITE_JPEG_QUALITY, compress_ratio])
-        if format.split('.')[-1] in ['png', 'PNG']:
-            cv2.imwrite(img_path+str(k)+format, img, [
-                cv2.IMWRITE_PNG_COMPRESSION, compress_ratio])
-        else:
-            cv2.imwrite(img_path+str(k)+format, img)
 
 
 '''

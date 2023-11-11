@@ -1,10 +1,42 @@
-import os
+import os, logging, logging.config
 import pandas as pd
 from itertools import product
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
 from srcs.utils._util import get_logger
 
+def Logger(name=None, log_path='./runtime.log'):
+    config_dict = {
+        "version": 1,
+        "formatters": {
+            "simple": {
+            "format": "%(message)s"
+            },
+            "detailed": {
+            "format": "[%(asctime)s][%(name)s][%(levelname)s] - %(message)s"
+            }
+        },
+        "handlers": {
+            "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+            "stream": "ext://sys.stdout"
+            },
+            "file": {
+            "class": "logging.FileHandler",
+            "formatter": "detailed",
+            "filename": log_path
+            }
+        },
+        "root": {
+            "level": "INFO",
+            "handlers": ["console", "file"]
+        },
+        "disable_existing_loggers": False
+    }
+    logging.config.dictConfig(config_dict)
+    logger = logging.getLogger(name)
+    return logger 
 
 class TensorboardWriter():
     def __init__(self, log_dir, enabled):

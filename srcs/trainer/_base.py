@@ -10,10 +10,10 @@ from pathlib import Path
 from shutil import copyfile
 from numpy import inf
 import time
+import os
 from datetime import datetime
 from srcs.utils._util import write_conf, is_master, get_logger, collect
-from srcs.logger import TensorboardWriter, EpochMetrics
-import os
+from srcs.logger import TensorboardWriter, EpochMetrics, BatchMetrics
 from os.path import join as opj
 
 
@@ -22,67 +22,95 @@ class BaseTrainer(metaclass=ABCMeta):
     Base class for all trainers
     """
 
-    def __init__(self, model, criterion, metric_ftns, optimizer, config):
+    def __init__(self, model, config, criterion, metrics, optimizer, lr_scheduler=None, train_data_loader=None, valid_data_loader=None, test_data_loader=None):
+        ## param assignment
         self.config = config
-        self.logger = get_logger('trainer')
+        self.criterion = criterion
+        self.metrics = metrics
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+        self.data_loader = train_data_loader
+        self.valid_data_loader = valid_data_loader
+        cfg_trainer = config['trainer']
 
+        ## model
         self.device = config.local_rank if config.n_gpus > 1 else 0
         self.model = model.to(self.device)
-
         if config.n_gpus > 1:
             # multi GPU
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
             self.model = DistributedDataParallel(
                 model, device_ids=[self.device], output_device=self.device)
-
-        self.criterion = criterion
-        self.metric_ftns = metric_ftns
-        self.optimizer = optimizer
-
-        cfg_trainer = config['trainer']
-        self.epochs = cfg_trainer.get('epochs', int(1e10))
-        if self.epochs is None:
-            self.epochs = int(1e10)
-        self.logging_step = cfg_trainer.get('logging_step', 100)
-
-        # setup metric monitoring for monitoring model performance and saving best-checkpoint
-        self.monitor = cfg_trainer.get('monitor', 'off')
-
-        metric_names = ['loss'] + [met.__name__ for met in self.metric_ftns]
-        self.ep_metrics = EpochMetrics(metric_names, phases=(
-            'train', 'valid'), monitoring=self.monitor)
-
-        self.saving_top_k = cfg_trainer.get('saving_top_k', -1)
-        self.milestone_ckp = cfg_trainer.get('milestone_ckp', [])
-        self.early_stop = cfg_trainer.get('early_stop', inf)
-        if self.early_stop is None:
-            self.early_stop = inf
-        self.final_test = cfg_trainer.get('final_test', False)
-
-        write_conf(self.config, 'config.yaml')
-
-        self.start_epoch = 1
-        self.checkpt_dir = Path(self.config.checkpoint_dir)
-        log_dir = Path(self.config.log_dir)
-        if self.final_test:
-            self.final_test_dir = Path(self.config.final_test_dir)
-        if is_master():
-            self.checkpt_dir.mkdir(exist_ok=True)
-            # setup visualization writer instance
-            log_dir.mkdir(exist_ok=True)
-            if self.final_test:
-                self.final_test_dir.mkdir(exist_ok=True)
-            self.writer = TensorboardWriter(
-                log_dir, cfg_trainer['tensorboard'])
-        else:
-            self.writer = TensorboardWriter(log_dir, False)
-
-        if config.resume is not None:
+        # resume from checkpoint
+        if config.resume is not None: 
             resume_conf = config.get(
                 'resume_conf', None)
             if resume_conf is None:
                 resume_conf = ['epoch', 'optimizer']
             self._resume_checkpoint(config.resume, resume_conf)
+
+        ## logger
+        self.logger = get_logger('trainer')
+        self.logging_step = cfg_trainer.get('logging_step', 100)
+        self.log_weight = config['trainer'].get('log_weight', False)
+        self.checkpt_dir = Path(self.config.checkpoint_dir)
+        log_dir = Path(self.config.log_dir)
+        if is_master():
+            self.checkpt_dir.mkdir(exist_ok=True)
+            log_dir.mkdir(exist_ok=True)
+            self.writer = TensorboardWriter(
+                log_dir, cfg_trainer['tensorboard'])
+        else:
+            self.writer = TensorboardWriter(log_dir, False)
+
+        ## metrics
+        args = ['loss', *[m.__name__ for m in self.metrics]]
+        self.train_metrics = BatchMetrics(
+            *args, postfix='/train', writer=self.writer)
+        self.valid_metrics = BatchMetrics(
+            *args, postfix='/valid', writer=self.writer)
+        metric_names = ['loss'] + [met.__name__ for met in self.metrics]
+        # metric monitor:  monitoring model performance and saving best-checkpoint
+        self.monitor = cfg_trainer.get('monitor', 'off')
+        self.ep_metrics = EpochMetrics(metric_names, phases=(
+            'train', 'valid'), monitoring=self.monitor)
+
+ 
+        ## runtime
+        self.start_epoch = 1
+        self.epochs = cfg_trainer.get('epochs', int(1e10))
+        if self.epochs is None:
+            self.epochs = int(1e10)
+        # limit train/valid iters
+        self.limit_train_iters = config['trainer'].get(
+            'limit_train_iters', len(self.data_loader))
+        if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
+            self.limit_train_iters = len(self.data_loader)
+        self.limit_valid_iters = config['trainer'].get(
+            'limit_valid_iters', len(self.valid_data_loader))
+        if not self.limit_valid_iters or self.limit_valid_iters > len(self.valid_data_loader):
+            self.limit_valid_iters = len(self.valid_data_loader)
+        self.saving_top_k = cfg_trainer.get('saving_top_k', -1)
+        self.milestone_ckp = cfg_trainer.get('milestone_ckp', [])
+        self.early_stop = cfg_trainer.get('early_stop', inf)
+        if self.early_stop is None:
+            self.early_stop = inf
+        # final test
+        self.final_test = cfg_trainer.get('final_test', False)
+        if self.final_test:
+            if test_data_loader is None:
+                self.logger.warning(
+                    "Warning: test dataloader for final test is None, final test is omitted")
+                self.final_test = False
+            else:
+                self.test_data_loader = test_data_loader
+                self.final_test_dir = Path(self.config.final_test_dir)
+                if is_master():
+                    self.final_test_dir.mkdir(exist_ok=True)
+        
+        ## save conf info
+        write_conf(self.config, 'config.yaml')
+
 
     @abstractmethod
     def _train_epoch(self, epoch):
@@ -114,13 +142,16 @@ class BaseTrainer(metaclass=ABCMeta):
         """
         Full training logic
         """
-        self.logger.info(f"\n⏩⏩ Start Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ⏩⏩\n")
+        self.logger.info(
+            f"\n⏩⏩ Start Training! | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ⏩⏩\n")
         not_improved_count = 0
         train_start = time.time()
         for epoch in range(self.start_epoch, self.epochs + 1):
+            # train one epoch
             epoch_start = time.time()
-            result = self._train_epoch(epoch)
+            result = self._train_epoch(epoch) 
             self.ep_metrics.update(epoch, result)
+            epoch_end = time.time()
 
             # print result metrics of this epoch
             max_line_width = max(len(line)
@@ -161,7 +192,7 @@ class BaseTrainer(metaclass=ABCMeta):
 
                 self.ep_metrics.to_csv('epoch-results.csv')
 
-            epoch_end = time.time()
+            
             self.logger.info(
                 f'🕒 {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}: Epoch Time Cost: {epoch_end-epoch_start:.2f}s, Total Time Cost: {(epoch_end-train_start)/3600:.2f}h\n')
             self.logger.info('=' * max_line_width)
@@ -185,7 +216,8 @@ class BaseTrainer(metaclass=ABCMeta):
         getattr(self, f'{phase}_metrics').update('loss', loss_v)
 
         for k, v in metrics.items():
-            getattr(self, f'{phase}_metrics').update(k, v.item()) # `v` is a torch tensor
+            getattr(self, f'{phase}_metrics').update(
+                k, v.item())  # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(
@@ -242,7 +274,7 @@ class BaseTrainer(metaclass=ABCMeta):
         filename = str(self.checkpt_dir / f'checkpoint-epoch{epoch}.pth')
         torch.save(state, filename)
         self.logger.info(
-            f"💾 Model checkpoint saved at: \n    {os.getcwd()}/{filename}")
+            f"💾 Model checkpoint saved at:\n\t{filename}")  # {os.getcwd()}/
         if save_latest:
             latest_path = str(self.checkpt_dir / 'model_latest.pth')
             copyfile(filename, latest_path)
@@ -274,6 +306,13 @@ class BaseTrainer(metaclass=ABCMeta):
         if checkpoint['config'].get('arch', None) != self.config.get('arch', None):
             self.logger.warning("⚠️ Warning: Architecture configuration given in config file is different from that of "
                                 "checkpoint. This may yield an exception while state_dict is being loaded.")
+
+        # preprocess DDP saved cpk
+        if checkpoint['config'].get('arch', 1) > 1:
+            state_dict = {k.replace('module.', ''): v for k,
+                          v in state_dict.items()}
+
+        # load cpk
         self.model.load_state_dict(checkpoint['state_dict'])
 
         # load optimizer state from checkpoint
@@ -291,3 +330,18 @@ class BaseTrainer(metaclass=ABCMeta):
             self.start_epoch = 1
             self.logger.info(
                 f"📣 Epoch index renumbered from epoch (1).")
+
+    def _progress(self, batch_idx):
+        base = '[{}/{} ({:.0f}%)]'
+        try:
+            # epoch-based training
+            # total = len(self.data_loader.dataset)
+            total = self.data_loader.batch_size * self.limit_train_iters
+            current = batch_idx * self.data_loader.batch_size
+            if dist.is_initialized():
+                current *= dist.get_world_size()
+        except AttributeError:
+            # iteration-based training
+            total = self.limit_train_iters
+            current = batch_idx
+        return base.format(current, total, 100.0 * current / total)

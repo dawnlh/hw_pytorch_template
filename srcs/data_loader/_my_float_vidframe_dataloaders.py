@@ -325,8 +325,7 @@ def get_data_loaders(data_dir, frame_num, batch_size, patch_size=None, tform_op=
         # split dataset into train and validation set
         num_total = len(dataset)
         if isinstance(validation_split, int):
-            assert validation_split >= 0
-            assert validation_split < num_total, "validation set size is configured to be larger than entire dataset."
+            assert 0 <= validation_split < num_total, "validation set size is configured to be larger than entire dataset."
             num_valid = validation_split
         elif isinstance(validation_split, float):
             num_valid = int(num_total * validation_split)

@@ -1,10 +1,19 @@
 
 import os
 import torch
+import numpy as np
 import hydra
 import warnings
 from omegaconf import OmegaConf
 from importlib import import_module
+
+# fix random seeds for reproducibility
+SEED = 0
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = True
 
 # ignore warning
 warnings.filterwarnings('ignore')

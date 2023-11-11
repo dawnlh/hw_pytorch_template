@@ -4,7 +4,6 @@ import hydra
 import torch
 import warnings
 from omegaconf import OmegaConf
-from importlib import import_module
 from srcs.trainer._engine import train_engine
 from importlib import import_module
 
@@ -21,8 +20,6 @@ torch.backends.cudnn.benchmark = True
 warnings.filterwarnings('ignore')
 
 # config: basenet_train
-
-
 @hydra.main(config_path='conf', config_name='basenet_train')
 def main(config):
     ## GPU setting

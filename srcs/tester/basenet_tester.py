@@ -6,7 +6,7 @@ import time
 from omegaconf import OmegaConf, open_dict
 from tqdm import tqdm
 from srcs.utils._util import instantiate
-from srcs.utils.utils_image_kair import tensor2uint, imsave
+from srcs.utils.utils_image_zzh import tensor2uint, imsave_n
 from srcs.utils.utils_eval_zzh import gpu_inference_time
 from ptflops import get_model_complexity_info
 
@@ -90,8 +90,7 @@ def test(test_data_loader, model,  device, metrics, config):
     # init
     model = model.to(device)
     if config.get('save_img', False):
-        os.makedirs(config.outputs_dir+'/input')
-        os.makedirs(config.outputs_dir+'/output')
+        os.makedirs(config.outputs_dir+'/images/')
 
     # inference time test
     input_shape = (1, 3, 256, 256)  # test image size
@@ -114,23 +113,12 @@ def test(test_data_loader, model,  device, metrics, config):
                     in_img = tensor2uint(in_img)
                     out_img = tensor2uint(out_img)
                     gt_img = tensor2uint(gt_img)
-
-                    # crop for symmetric padding
-                    # if config['status'] == 'realexp':
-                    #     H, W = in_img.shape[0]//2, in_img.shape[1]//2
-                    #     h = np.int32(H/2)
-                    #     w = np.int32(W/2)
-                    #     in_img = in_img[h:h+H, w:w+W]
-                    #     out_img = out_img[h:h+H, w:w+W]
+                    imgs = [in_img, out_img, gt_img]
+                    imsave_n(
+                        imgs, f'{config.outputs_dir}/images/test{i+1:03d}_{k+1:03d}.png')
+                    # imsave_n(
+                    #     [out_img], f'{config.outputs_dir}/images/test{i+1:03d}_{k+1:03d}_out.png')
                     
-                    imsave(
-                        in_img, f'{config.outputs_dir}input/test{i+1:03d}_{k+1:03d}_input.png')
-                    imsave(
-                        out_img, f'{config.outputs_dir}output/test{i+1:03d}_{k+1:03d}_output.png')
-                    # imsave(
-                    #     gt_img, f'{config.outputs_dir}test{i+1:03d}_{k+1:03d}_gt.png')
-                    # break  # save one image per batch
-
             # computing metrics on test set (if gt is available)
             if config.status != 'realexp':
                 batch_size = img_noise.shape[0]

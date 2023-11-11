@@ -5,49 +5,25 @@ import torch.distributed as dist
 from torchvision.utils import make_grid
 from ._base import BaseTrainer
 from srcs.utils._util import collect
-from srcs.logger import BatchMetrics
-from srcs.utils.utils_image_kair import tensor2uint, imsave
+
+from srcs.utils.utils_image_zzh import tensor2uint, imsave_n
 
 # ======================================
 # Trainer
 # ======================================
+
 
 class Trainer(BaseTrainer):
     """
     Trainer class
     """
 
-    def __init__(self, model, criterion, metric_ftns, optimizer, config, train_data_loader,
-                 valid_data_loader=None, test_data_loader=None, lr_scheduler=None, input_denoise_epoch=None):
-        super().__init__(model, criterion, metric_ftns, optimizer, config)
-        self.config = config
-        self.data_loader = train_data_loader
-        self.valid_data_loader = valid_data_loader
-        if self.final_test:
-            self.test_data_loader = test_data_loader
-            if test_data_loader is None:
-                self.logger.warning(
-                    "Warning: test dataloader for final test is None, final test is omitted")
-                self.final_test = False
-        self.input_denoise_epoch = input_denoise_epoch
+    def __init__(self, model, config, criterion, metrics, optimizer, lr_scheduler=None, train_data_loader=None, valid_data_loader=None, test_data_loader=None):
+        super().__init__(model, config, criterion, metrics, optimizer, lr_scheduler,
+                         train_data_loader, valid_data_loader, test_data_loader)
+        
         # self.loss = self.config['losses']
-        self.lr_scheduler = lr_scheduler
-        self.limit_train_iters = config['trainer'].get(
-            'limit_train_iters', len(self.data_loader))
-        if not self.limit_train_iters or self.limit_train_iters > len(self.data_loader):
-            self.limit_train_iters = len(self.data_loader)
-        self.limit_valid_iters = config['trainer'].get(
-            'limit_valid_iters', len(self.valid_data_loader))
-        if not self.limit_valid_iters or self.limit_valid_iters > len(self.valid_data_loader):
-            self.limit_valid_iters = len(self.valid_data_loader)
-        self.log_weight = config['trainer'].get('log_weight', False)
-        args = ['loss', *[m.__name__ for m in self.metric_ftns]]
-        self.train_metrics = BatchMetrics(
-            *args, postfix='/train', writer=self.writer)
-        self.valid_metrics = BatchMetrics(
-            *args, postfix='/valid', writer=self.writer)
         self.grad_clip = 0.5  # optimizer gradient clip value
-
 
     def clip_gradient(self, optimizer, grad_clip=0.5):
         """
@@ -72,7 +48,8 @@ class Trainer(BaseTrainer):
         for k, v in metrics.items():
             if isinstance(v, torch.Tensor):
                 v = v.item()
-            getattr(self, f'{phase}_metrics').update(k, v) # `v` is a torch tensor
+            getattr(self, f'{phase}_metrics').update(
+                k, v)  # `v` is a torch tensor
 
         for k, v in image_tensors.items():
             self.writer.add_image(
@@ -89,7 +66,8 @@ class Trainer(BaseTrainer):
         self.train_metrics.reset()
 
         for batch_idx, (img_noise, img_target, noise_params) in enumerate(self.data_loader):
-            img_noise, img_target = img_noise.to(self.device), img_target.to(self.device)
+            img_noise, img_target = img_noise.to(
+                self.device), img_target.to(self.device)
 
             # forward
             output = self.model(img_noise)
@@ -109,7 +87,7 @@ class Trainer(BaseTrainer):
             if batch_idx % self.logging_step == 0 or (batch_idx+1) == self.limit_train_iters:
                 # iter metrics
                 iter_metrics = {}
-                for met in self.metric_ftns:
+                for met in self.metrics:
                     if self.config.n_gpus > 1:
                         # average metric between processes
                         metric_v = collect(met(output, img_target))
@@ -127,7 +105,7 @@ class Trainer(BaseTrainer):
                                  loss, iter_metrics, {})  # don't save images in every iter to save space
                 # iter log
                 self.logger.info(
-                    f'Train Epoch: {epoch} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
+                    f'Train Epoch: {epoch:03d} {self._progress(batch_idx)} Loss: {loss:.6f} Lr: {self.optimizer.param_groups[0]["lr"]:.3e}')
 
             # reach maximum training iters, endding epoch
             if (batch_idx+1) == self.limit_train_iters:
@@ -180,7 +158,7 @@ class Trainer(BaseTrainer):
                 # iter record
                 # iter metrics
                 iter_metrics = {}
-                for met in self.metric_ftns:
+                for met in self.metrics:
                     if self.config.n_gpus > 1:
                         # average metric between processes
                         metric_v = collect(met(output, img_target))
@@ -195,7 +173,7 @@ class Trainer(BaseTrainer):
 
                 # aftet iter hook
                 self._after_iter(epoch, batch_idx, 'valid',
-                                 loss, iter_metrics, {}) # don't save images in every iter to save space
+                                 loss, iter_metrics, {})  # don't save images in every iter to save space
 
                 # reach maximum validation iters, endding epoch
                 if (batch_idx+1) == self.limit_valid_iters:
@@ -204,7 +182,7 @@ class Trainer(BaseTrainer):
                     for k, v in image_tensors.items():
                         self.writer.add_image(
                             f'valid/{k}', make_grid(image_tensors[k][0:8, ...].cpu(), nrow=2, normalize=True))
-                    break # endding epoch
+                    break  # endding epoch
 
         # add histogram of model parameters to the tensorboard
         if self.log_weight:
@@ -220,12 +198,13 @@ class Trainer(BaseTrainer):
         """
         self.model.eval()
         total_loss = 0.0
-        total_metrics = torch.zeros(len(self.metric_ftns))
+        total_metrics = torch.zeros(len(self.metrics))
         time_start = time.time()
 
         with torch.no_grad():
             for batch_idx, (img_noise, img_target, noise_params) in enumerate(tqdm(self.test_data_loader)):
-                img_noise, img_target = img_noise.to(self.device), img_target.to(self.device)
+                img_noise, img_target = img_noise.to(
+                    self.device), img_target.to(self.device)
 
                 # forward
                 output = self.model(img_noise)
@@ -235,18 +214,15 @@ class Trainer(BaseTrainer):
                     in_img = tensor2uint(in_img)
                     out_img = tensor2uint(out_img)
                     gt_img = tensor2uint(gt_img)
-                    imsave(
-                        in_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_in_img.png')
-                    imsave(
-                        out_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_out_img.png')
-                    imsave(
-                        gt_img, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_gt_img.png')
-
+                    imgs = [in_img, out_img, gt_img]
+                    imsave_n(imgs, f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_img.png')
+                    # imsave_n([out_img], f'{self.final_test_dir}/test{i+1:03d}_{k+1:03d}_out_img.png')
+                    
                 # computing loss, metrics on test set
                 loss = self.criterion(output, img_target)
                 batch_size = img_noise.shape[0]
                 total_loss += loss.item() * batch_size
-                for i, metric in enumerate(self.metric_ftns):
+                for i, metric in enumerate(self.metrics):
                     total_metrics[i] += metric(output, img_target) * batch_size
         time_end = time.time()
         time_cost = time_end-time_start
@@ -254,23 +230,7 @@ class Trainer(BaseTrainer):
         log = {'loss': total_loss / n_samples,
                'time/sample': time_cost/n_samples}
         log.update({
-            met.__name__: total_metrics[i].item() / n_samples for i, met in enumerate(self.metric_ftns)
+            met.__name__: total_metrics[i].item() / n_samples for i, met in enumerate(self.metrics)
         })
         self.logger.info('-'*70+'\n Final test result: '+str(log))
-
-    def _progress(self, batch_idx):
-        base = '[{}/{} ({:.0f}%)]'
-        try:
-            # epoch-based training
-            # total = len(self.data_loader.dataset)
-            total = self.data_loader.batch_size * self.limit_train_iters
-            current = batch_idx * self.data_loader.batch_size
-            if dist.is_initialized():
-                current *= dist.get_world_size()
-        except AttributeError:
-            # iteration-based training
-            total = self.limit_train_iters
-            current = batch_idx
-        return base.format(current, total, 100.0 * current / total)
-
 

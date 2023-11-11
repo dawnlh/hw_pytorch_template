@@ -2,12 +2,15 @@
 # Trainning Engine: run Trainer for trainning
 # ======================================
 import torch
-import platform, os
+import platform
+import os
 from omegaconf import OmegaConf
 from srcs.utils._util import instantiate, get_logger
 import torch.distributed as dist
 
 # training engine
+
+
 def train_engine(trainer, gpus, config):
     if config.n_gpus > 1:
         # multiple GPUs
@@ -18,6 +21,8 @@ def train_engine(trainer, gpus, config):
         train_worker(trainer, config)
 
 # training worker for single GPU
+
+
 def train_worker(trainer, config):
     # setup logger
     logger = get_logger('train')
@@ -55,13 +60,12 @@ def train_worker(trainer, config):
     # build optimizer, learning rate scheduler.
     optimizer = instantiate(config.optimizer, model.parameters())
     lr_scheduler = instantiate(config.lr_scheduler, optimizer)
-    trainer = trainer(model, criterion, metrics, optimizer,
-                      config=config,
+    trainer = trainer(model, config, criterion, metrics, optimizer, lr_scheduler,
                       train_data_loader=train_data_loader,
                       valid_data_loader=valid_data_loader,
-                      test_data_loader=test_data_loader,
-                      lr_scheduler=lr_scheduler, input_denoise_epoch=config.input_denoise_epoch)
+                      test_data_loader=test_data_loader)
     trainer.train()
+
 
 # training worker for multiple GPU
 def multi_gpu_train_worker(rank, trainer, gpus, config):
