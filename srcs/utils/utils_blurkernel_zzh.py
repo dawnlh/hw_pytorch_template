@@ -803,7 +803,7 @@ def traj2kernel(x, psf_sz, traj_v=1):
 # circular padding
 # ===============
 
-def pad_circular(x, pad):
+def pad_circular_2d(x, pad):
     """
 
     :param x: shape [H, W]
@@ -818,11 +818,11 @@ def pad_circular(x, pad):
     return x
 
 
-def pad_circular_nd(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
+def pad_circular_dim(x: torch.Tensor, pad: int, dim) -> torch.Tensor:
     """
-    :param x: shape [H, W]
+    :param x: tensor to be padded
     :param pad: int >= 0
-    :param dim: the dimension over which the tensors are padded
+    :param dim: the dimension(s) over which the tensors are padded
     :return:
     """
 
