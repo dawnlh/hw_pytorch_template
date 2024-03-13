@@ -1,4 +1,3 @@
-
 import torch
 import numpy as np
 import os
@@ -78,7 +77,9 @@ def model_complexity(model, input_shape, input_constructor=None, logger=None, pr
 # ---------------------------------------------------
 
 
-def gpu_inference_time(model, input_shape, logger=None, device=None, repetitions=100):
+def gpu_inference_time(
+    model, input_shape, device=None, repetitions=100, logger=None, verbose=True
+):
     """
     inference time estimation
 
@@ -88,6 +89,7 @@ def gpu_inference_time(model, input_shape, logger=None, device=None, repetitions
         logger: logger. Defaults to None
         device: GPU cuda device. Defaults to None, i.e. use model's woring device
         repetitions (int, optional): testing times. Defaults to 100.
+        verbose: print the results. Defaults to True.
     """
 
     # INIT
@@ -134,9 +136,10 @@ def gpu_inference_time(model, input_shape, logger=None, device=None, repetitions
     if logger:
         logger.info(
             '='*40+f'\nInference Time Estimation \nInputs Shape:\t{input_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*40)
-    else:
+    if verbose:
         print(
             '='*40+f'\nInference Time Estimation \nInputs Shape:\t{input_shape} \nEstimated Time:\t{mean_time:.3f}ms \nEstimated Std:\t{std_time:.3f}ms\n'+'='*40)
+    return mean_time, std_time
 
 
 if __name__ == '__main__':
